@@ -149,6 +149,20 @@ static const char *wv_cstr(id nsstr) {
     return (const char *)objc_msgSend(nsstr, wv_sel("UTF8String"));
 }
 
+/* --- autorelease pool helpers (no ObjC syntax available) --- */
+
+static id wv_pool_push(void) {
+    id pool = objc_msgSend((id)objc_getClass("NSAutoreleasePool"),
+                           wv_sel("alloc"));
+    return objc_msgSend(pool, wv_sel("init"));
+}
+
+static void wv_pool_pop(id pool) {
+    if (pool != NULL) {
+        objc_msgSend(pool, wv_sel("drain"));
+    }
+}
+
 static void wv_push(alya_webview_t *w, int kind) {
     int next;
     if (w == NULL) {
@@ -634,19 +648,6 @@ static Class wv_scheme_class(void) {
     return cls;
 }
 
-/* --- autorelease pool helpers (no ObjC syntax available) --- */
-
-static id wv_pool_push(void) {
-    id pool = objc_msgSend((id)objc_getClass("NSAutoreleasePool"),
-                           wv_sel("alloc"));
-    return objc_msgSend(pool, wv_sel("init"));
-}
-
-static void wv_pool_pop(id pool) {
-    if (pool != NULL) {
-        objc_msgSend(pool, wv_sel("drain"));
-    }
-}
 
 /* ---------------- public contract ---------------- */
 
