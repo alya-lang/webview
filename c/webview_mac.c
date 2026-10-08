@@ -667,17 +667,13 @@ static void wv_scheme_start(id self, SEL cmd, id webview, id task) {
         id dataObj = wv_send2(id, (id)objc_getClass("NSData"),
                               wv_sel("dataWithBytes:length:"), data,
                               (unsigned long)(size > 0 ? size : 0));
-        id headers = wv_send0(id, (id)objc_getClass("NSMutableDictionary"),
-                              wv_sel("dictionary"));
         id resp;
         free(data);
-        wv_send2(void, headers, wv_sel("setObject:forKey:"),
-                 wv_nsstr(wv_mime_for(full)), wv_nsstr("Content-Type"));
-        resp = wv_send0(id, (id)objc_getClass("NSHTTPURLResponse"),
+        resp = wv_send0(id, (id)objc_getClass("NSURLResponse"),
                         wv_sel("alloc"));
         resp = wv_send4(id, resp,
-                        wv_sel("initWithURL:statusCode:HTTPVersion:headerFields:"),
-                        url, (long)200, wv_nsstr("HTTP/1.1"), headers);
+                        wv_sel("initWithURL:MIMEType:expectedContentLength:textEncodingName:"),
+                        url, wv_nsstr(wv_mime_for(full)), (long)size, NULL);
         wv_send1(void, task, wv_sel("didReceiveResponse:"), resp);
         wv_send1(void, task, wv_sel("didReceiveData:"), dataObj);
         wv_send0(void, task, wv_sel("didFinish"));
