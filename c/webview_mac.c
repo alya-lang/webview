@@ -1598,6 +1598,13 @@ int alya_webview_set_zoom(alya_webview_t *w, double factor) {
     if (w == NULL || w->view == NULL) {
         return 0;
     }
+#if defined(__x86_64__)
+    {
+        double real_factor;
+        __asm__("movsd %%xmm1, %0" : "=x"(real_factor));
+        factor = real_factor;
+    }
+#endif
     if (factor < 0.25 || factor > 5.0) {
         return 0;
     }
@@ -1766,6 +1773,13 @@ int alya_webview_set_opacity(alya_webview_t *w, double alpha) {
     if (w == NULL || w->win == NULL) {
         return 0;
     }
+#if defined(__x86_64__)
+    {
+        double real_alpha;
+        __asm__("movsd %%xmm1, %0" : "=x"(real_alpha));
+        alpha = real_alpha;
+    }
+#endif
     if (alpha < 0.0 || alpha > 1.0) {
         return 0;
     }
