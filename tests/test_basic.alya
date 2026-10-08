@@ -110,7 +110,32 @@ function main()
     runner_assert_eq(r, pkg::open_external(""), false, "open_external empty is 0")
 
     # ═══════════════════════════════════════════════════════════
-    # 6. Native smoke: bundled C linked + backend selected
+    # 6. Key codes and null-safe input/zoom (no window needed)
+    # ═══════════════════════════════════════════════════════════
+    runner_assert_true(r, pkg::key_code("Enter") >= 0, "Enter maps to a code")
+    runner_assert_true(r, pkg::key_code("Escape") >= 0, "Escape maps to a code")
+    runner_assert_true(r, pkg::key_code("Left") >= 0, "Left maps to a code")
+    runner_assert_eq(r, pkg::key_code("Nope"), -1, "unknown key is -1")
+    runner_assert_eq(r, pkg::key_code(null), -1, "null key is -1")
+    runner_assert_eq(r, pkg::key_code(""), -1, "empty key is -1")
+    runner_assert_eq(r, pkg::mouse_move(null, 1, 1), false, "mouse_move null is 0")
+    runner_assert_eq(r, pkg::mouse_down(null, 0), false, "mouse_down null is 0")
+    runner_assert_eq(r, pkg::mouse_up(null, 0), false, "mouse_up null is 0")
+    runner_assert_eq(r, pkg::mouse_click(null, 0), false, "mouse_click null is 0")
+    runner_assert_eq(r, pkg::mouse_click(null, 9), false, "mouse_click bad button is 0")
+    runner_assert_eq(r, pkg::mouse_wheel(null, 0, 1), false, "mouse_wheel null is 0")
+    runner_assert_eq(r, pkg::key_down(null, 13), false, "key_down null is 0")
+    runner_assert_eq(r, pkg::key_up(null, 13), false, "key_up null is 0")
+    runner_assert_eq(r, pkg::key_tap(null, 13), false, "key_tap null is 0")
+    runner_assert_eq(r, pkg::key_text(null, "a"), false, "key_text null is 0")
+    runner_assert_eq(r, pkg::key_text(null, null), false, "key_text null null is 0")
+    runner_assert_eq(r, pkg::set_zoom(null, 1.5), false, "set_zoom null is 0")
+    runner_assert_true(r, pkg::get_zoom(null) < 0.01, "get_zoom null is ~0.0")
+    runner_assert_eq(r, pkg::set_data_dir(null), true, "set_data_dir null resets")
+    runner_assert_eq(r, pkg::set_extra_args(null), true, "set_extra_args null clears")
+
+    # ═══════════════════════════════════════════════════════════
+    # 7. Native smoke: bundled C linked + backend selected
     # ═══════════════════════════════════════════════════════════
     let c_sum = pkg::c_add(10, 32)
     runner_assert_eq(r, c_sum, 42, "pkg::c_add executes bundled C code")

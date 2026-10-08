@@ -37,6 +37,7 @@ extern Ivar class_getInstanceVariable(Class cls, const char *name);
 extern id object_setIvar(id obj, Ivar ivar, id value);
 extern id object_getIvar(id obj, Ivar ivar);
 extern void *_NSConcreteStackBlock;
+extern double objc_msgSend_fpret(id self, SEL op, ...);
 
 typedef struct NSRect {
     double x;
@@ -420,8 +421,32 @@ int alya_webview_open_external(const char *url) {
     return ok ? 1 : 0;
 }
 
+alya_webview_t *void alya_webview_set_data_dir(const char *path) {
+    // WKWebsiteDataStore exposes no custom-path API; the default store
+    // is used. Private windows use a non-persistent store instead.
+    (void)path;
+}
+
+void alya_webview_set_extra_args(const char *args) {
+    // No Chromium-switch channel exists for WKWebView; ignored.
+    (void)args;
+}
+
+static alya_webview_t *wv_create_inner(const char *title, int width,
+                                               int height, int priv);
+
 alya_webview_t *alya_webview_create(const char *title, int width,
                                     int height) {
+    return wv_create_inner(title, width, height, 0);
+}
+
+alya_webview_t *alya_webview_create_private(const char *title, int width,
+                                            int height) {
+    return wv_create_inner(title, width, height, 1);
+}
+
+static alya_webview_t *wv_create_inner(const char *title, int width,
+                                       int height, int priv) {
     alya_webview_t *w;
     id pool;
     id app;
@@ -486,6 +511,13 @@ alya_webview_t *alya_webview_create(const char *title, int width,
     config = objc_msgSend((id)objc_getClass("WKWebViewConfiguration"),
                           wv_sel("alloc"));
     config = objc_msgSend(config, wv_sel("init"));
+    if (priv) {
+        id store = objc_msgSend((id)objc_getClass("WKWebsiteDataStore"),
+                                wv_sel("nonPersistentDataStore"));
+        if (store != NULL) {
+            objc_msgSend(config, wv_sel("setWebsiteDataStore:"), store);
+        }
+    }
     ucc = objc_msgSend(config, wv_sel("userContentController"));
 
     del = objc_msgSend((id)wv_delegate_class(), wv_sel("alloc"));
@@ -857,6 +889,262 @@ int alya_webview_set_user_agent(alya_webview_t *w, const char *ua) {
     objc_msgSend(w->view, wv_sel("setCustomUserAgent:"), wv_nsstr(ua));
     wv_pool_pop(pool);
     return 1;
+}
+
+/* Synthetic input. Mouse and keyboard events are posted to our own
+ * application queue (targeted at the embedded page, no system-wide
+ * side effects, no Accessibility permission needed). The wheel uses a
+ * CGEvent (global, applies to the focused view). Coordinates are
+ * window client pixels, origin top-left. */
+
+// CoreGraphics C API (typed prototypes, no ObjC involved).
+typedef void *CGEventRef;
+typedef void *CGEventSourceRef;
+extern CGEventRef CGEventCreateScrollWheelEvent(CGEventSourceRef src,
+                                                int unit,
+                                                unsigned int wheels, int w1,
+                                                ...);
+extern void CGEventPost(int tap, CGEventRef ev);
+extern void CFRelease(void *ref);
+
+static double wv_uptime(void) {
+    id pi = objc_msgSend((id)objc_getClass("NSProcessInfo"),
+                         wv_sel("processInfo"));
+    if (pi == NULL) {
+        return 0.0;
+    }
+    return objc_msgSend_fpret(pi, wv_sel("systemUptime"));
+}
+
+static long wv_window_number(alya_webview_t *w) {
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    return (long)objc_msgSend(w->win, wv_sel("windowNumber"));
+}
+
+static int wv_post_mouse(alya_webview_t *w, unsigned long type, int x,
+                         int y, long clicks) {
+    id pool;
+    id app;
+    id ev;
+    NSPoint loc;
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    loc.x = (double)x;
+    loc.y = (double)(w->height - y); // base coords: origin bottom-left
+    pool = wv_pool_push();
+    app = objc_msgSend((id)objc_getClass("NSApplication"),
+                       wv_sel("sharedApplication"));
+    ev = objc_msgSend((id)objc_getClass("NSEvent"),
+                      wv_sel("mouseEventWithType:location:modifierFlags:timestamp:windowNumber:context:eventNumber:clickCount:pressure:"),
+                      type, loc, (unsigned long)0, wv_uptime(),
+                      wv_window_number(w), NULL, (long)0, clicks, (double)1.0);
+    if (ev != NULL) {
+        objc_msgSend(app, wv_sel("postEvent:atStart:"), ev, (BOOL)0);
+    }
+    wv_pool_pop(pool);
+    return ev != NULL ? 1 : 0;
+}
+
+int alya_webview_mouse_move(alya_webview_t *w, int x, int y) {
+    return wv_post_mouse(w, 5, x, y, 0);
+}
+
+static int wv_mouse_btn(alya_webview_t *w, int button, int down) {
+    unsigned long t = 0;
+    if (w == NULL) {
+        return 0;
+    }
+    if (button == 0) {
+        t = down ? 1 : 2;
+    } else if (button == 1) {
+        t = down ? 3 : 4;
+    } else if (button == 2) {
+        t = down ? 25 : 26;
+    } else {
+        return 0;
+    }
+    return wv_post_mouse(w, t, 0, 0, down ? 1 : 0);
+}
+
+int alya_webview_mouse_down(alya_webview_t *w, int button) {
+    return wv_mouse_btn(w, button, 1);
+}
+
+int alya_webview_mouse_up(alya_webview_t *w, int button) {
+    return wv_mouse_btn(w, button, 0);
+}
+
+int alya_webview_mouse_click(alya_webview_t *w, int button) {
+    int d;
+    int u;
+    if (w == NULL || button < 0 || button > 2) {
+        return 0;
+    }
+    d = wv_mouse_btn(w, button, 1);
+    u = wv_mouse_btn(w, button, 0);
+    return (d && u) ? 1 : 0;
+}
+
+int alya_webview_mouse_wheel(alya_webview_t *w, int dx, int dy) {
+    CGEventRef ev;
+    if (w == NULL) {
+        return 0;
+    }
+    if (dx == 0 && dy == 0) {
+        return 0;
+    }
+    ev = CGEventCreateScrollWheelEvent(NULL, 0, 2, dy, dx);
+    if (ev == NULL) {
+        return 0;
+    }
+    CGEventPost(0, ev);
+    CFRelease(ev);
+    return 1;
+}
+
+static int wv_post_key(alya_webview_t *w, int code, const char *chars,
+                       int down) {
+    id pool;
+    id app;
+    id ev;
+    NSPoint loc;
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    if (chars == NULL) {
+        chars = "";
+    }
+    loc.x = 0;
+    loc.y = 0;
+    pool = wv_pool_push();
+    app = objc_msgSend((id)objc_getClass("NSApplication"),
+                       wv_sel("sharedApplication"));
+    ev = objc_msgSend((id)objc_getClass("NSEvent"),
+                      wv_sel("keyEventWithType:location:modifierFlags:timestamp:windowNumber:context:characters:charactersIgnoringModifiers:isARepeat:keyCode:"),
+                      (unsigned long)(down ? 10 : 11), loc,
+                      (unsigned long)0, wv_uptime(), wv_window_number(w),
+                      NULL, wv_nsstr(chars), wv_nsstr(chars), (BOOL)0,
+                      (unsigned short)(code & 0xFFFF));
+    if (ev != NULL) {
+        objc_msgSend(app, wv_sel("postEvent:atStart:"), ev, (BOOL)0);
+    }
+    wv_pool_pop(pool);
+    return ev != NULL ? 1 : 0;
+}
+
+int alya_webview_key_down(alya_webview_t *w, int code) {
+    if (code <= 0) {
+        return 0;
+    }
+    return wv_post_key(w, code, "", 1);
+}
+
+int alya_webview_key_up(alya_webview_t *w, int code) {
+    if (code <= 0) {
+        return 0;
+    }
+    return wv_post_key(w, code, "", 0);
+}
+
+int alya_webview_key_tap(alya_webview_t *w, int code) {
+    int d;
+    int u;
+    if (w == NULL || code <= 0) {
+        return 0;
+    }
+    d = wv_post_key(w, code, "", 1);
+    u = wv_post_key(w, code, "", 0);
+    return (d && u) ? 1 : 0;
+}
+
+int alya_webview_key_text(alya_webview_t *w, const char *text) {
+    int ok = 0;
+    const unsigned char *p;
+    char one[5];
+    if (w == NULL || text == NULL || text[0] == '\0') {
+        return 0;
+    }
+    // One key event per UTF-8 code point.
+    p = (const unsigned char *)text;
+    while (*p != '\0') {
+        int n = 1;
+        if ((*p & 0x80) == 0) {
+            n = 1;
+        } else if ((*p & 0xE0) == 0xC0) {
+            n = 2;
+        } else if ((*p & 0xF0) == 0xE0) {
+            n = 3;
+        } else if ((*p & 0xF8) == 0xF0) {
+            n = 4;
+        }
+        if (n > 4) {
+            n = 1;
+        }
+        memcpy(one, p, (size_t)n);
+        one[n] = '\0';
+        if (wv_post_key(w, 0, one, 1)) {
+            ok = 1;
+        }
+        wv_post_key(w, 0, one, 0);
+        p += n;
+    }
+    return ok;
+}
+
+int alya_webview_key_code(const char *name) {
+    static const struct {
+        const char *name;
+        int code;
+    } map[] = {{"Enter", 0x24},     {"Escape", 0x35},
+               {"Tab", 0x30},       {"Backspace", 0x33},
+               {"Delete", 0x75},    {"Left", 0x7B},
+               {"Up", 0x7E},        {"Right", 0x7C},
+               {"Down", 0x7D},      {"Home", 0x73},
+               {"End", 0x77},       {"PageUp", 0x74},
+               {"PageDown", 0x79},  {NULL, -1}};
+    int i;
+    if (name == NULL) {
+        return -1;
+    }
+    for (i = 0; map[i].name != NULL; i++) {
+        if (strcmp(name, map[i].name) == 0) {
+            return map[i].code;
+        }
+    }
+    return -1;
+}
+
+int alya_webview_set_zoom(alya_webview_t *w, double factor) {
+    id pool;
+    NSPoint at;
+    if (w == NULL || w->view == NULL) {
+        return 0;
+    }
+    if (factor < 0.25 || factor > 5.0) {
+        return 0;
+    }
+    at.x = 0;
+    at.y = 0;
+    pool = wv_pool_push();
+    objc_msgSend(w->view, wv_sel("setMagnification:centeredAtPoint:"),
+                 factor, at);
+    wv_pool_pop(pool);
+    return 1;
+}
+
+double alya_webview_get_zoom(alya_webview_t *w) {
+    id pool;
+    double z = 0.0;
+    if (w == NULL || w->view == NULL) {
+        return 0.0;
+    }
+    pool = wv_pool_push();
+    z = objc_msgSend_fpret(w->view, wv_sel("magnification"));
+    wv_pool_pop(pool);
+    return z;
 }
 
 int alya_webview_poll(alya_webview_t *w) {

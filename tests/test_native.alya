@@ -96,7 +96,39 @@ function main()
         runner_assert_eq(r, pkg::eval(w, "1"), false, "eval without engine is 0")
     end
 
-    # 5. Graceful close -> CLOSE event -> not open
+    # 5. Launch config + private window (uses the custom data dir)
+    runner_assert_eq(r, pkg::set_data_dir(".alya/wvdata-test"), true, "data dir set")
+    runner_assert_eq(r, pkg::set_extra_args("--disable-gpu"), true, "extra args set")
+    let p = pkg::open_private("Alya CI Private", 320, 200)
+    if p is null
+        runner_assert(r, 1 == 1, "no private window, skipped")
+    else
+        runner_assert_eq(r, pkg::is_open(p), true, "private open")
+        runner_assert_eq(r, pkg::show(p), true, "private show")
+        pkg::poll(p)
+        runner_assert_eq(r, pkg::request_close(p), true, "private close requested")
+        pkg::destroy(p)
+        runner_assert(r, 1 == 1, "private destroyed")
+    end
+    runner_assert_eq(r, pkg::set_data_dir(""), true, "data dir reset")
+    runner_assert_eq(r, pkg::set_extra_args(""), true, "extra args cleared")
+
+    # 6. Synthetic input + zoom on the live window (no-crash + ranges)
+    let mm = pkg::mouse_move(w, 10, 10)
+    runner_assert_true(r, mm == 0 or mm == 1, "mouse_move in 0..1")
+    let mc = pkg::mouse_click(w, 0)
+    runner_assert_true(r, mc == 0 or mc == 1, "mouse_click in 0..1")
+    let mw = pkg::mouse_wheel(w, 0, 1)
+    runner_assert_true(r, mw == 0 or mw == 1, "mouse_wheel in 0..1")
+    let kt = pkg::key_tap(w, pkg::key_code("Enter"))
+    runner_assert_true(r, kt == 0 or kt == 1, "key_tap in 0..1")
+    let kx = pkg::key_text(w, "a")
+    runner_assert_true(r, kx == 0 or kx == 1, "key_text in 0..1")
+    let sz = pkg::set_zoom(w, 1.5)
+    runner_assert_true(r, sz == 0 or sz == 1, "set_zoom in 0..1")
+    runner_assert_true(r, pkg::get_zoom(w) >= 0.0, "get_zoom non-negative")
+
+    # 7. Graceful close -> CLOSE event -> not open
     runner_assert_eq(r, pkg::request_close(w), true, "close requested")
     let kind = 0
     let ticks = 0
@@ -110,7 +142,7 @@ function main()
     runner_assert_eq(r, kind, 1, "CLOSE event pumped")
     runner_assert_eq(r, pkg::is_open(w), false, "closed after event")
 
-    # 6. Null safety on a dead handle path
+    # 8. Null safety on a dead handle path
     runner_assert_eq(r, pkg::destroy(null), true, "destroy null safe")
     pkg::destroy(w)
 

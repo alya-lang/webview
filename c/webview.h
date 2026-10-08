@@ -53,6 +53,19 @@ const char *alya_webview_backend_name(void);
  * available (headless CI, missing WebView2 Runtime, ...). */
 typedef struct alya_webview alya_webview_t;
 alya_webview_t *alya_webview_create(const char *title, int width, int height);
+
+/* Private (incognito) window: no persistent profile is kept.
+ * Windows: fresh unique user-data dir. macOS: non-persistent store.
+ * Linux: ephemeral web context. NULL handling matches create(). */
+alya_webview_t *alya_webview_create_private(const char *title, int width,
+                                            int height);
+
+/* Launch configuration. Must be called before open()/open_private();
+ * process-wide, last call wins. data_dir overrides the profile folder
+ * (Windows/Linux; ignored on macOS). extra_args forwards Chromium
+ * switches (Windows WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS only). */
+void alya_webview_set_data_dir(const char *path);
+void alya_webview_set_extra_args(const char *args);
 void alya_webview_destroy(alya_webview_t *w);
 void alya_webview_show(alya_webview_t *w);
 void alya_webview_hide(alya_webview_t *w);
@@ -93,6 +106,32 @@ int alya_webview_set_user_agent(alya_webview_t *w, const char *ua);
  * blocks, never throws. Returns 1 when the launch was attempted,
  * 0 when it was not (NULL/empty URL, headless helpers missing). */
 int alya_webview_open_external(const char *url);
+
+/* Zoom factor (1.0 = 100%). set returns 1 when applied; get returns
+ * the current factor, 0.0 when unknown. Backends without a safe zoom
+ * path report 0/0.0 instead of risking a fault (see backend notes). */
+int alya_webview_set_zoom(alya_webview_t *w, double factor);
+double alya_webview_get_zoom(alya_webview_t *w);
+
+/* Synthetic input, in window client pixels (origin top-left).
+ * button: 0 = left, 1 = right, 2 = middle. code: platform key code
+ * (see alya_webview_key_code); key_text commits printable text.
+ * Delivery targets the embedded page only and never blocks.
+ * Each function returns 1 when the event was posted, 0 otherwise. */
+int alya_webview_mouse_move(alya_webview_t *w, int x, int y);
+int alya_webview_mouse_down(alya_webview_t *w, int button);
+int alya_webview_mouse_up(alya_webview_t *w, int button);
+int alya_webview_mouse_click(alya_webview_t *w, int button);
+int alya_webview_mouse_wheel(alya_webview_t *w, int dx, int dy);
+int alya_webview_key_down(alya_webview_t *w, int code);
+int alya_webview_key_up(alya_webview_t *w, int code);
+int alya_webview_key_tap(alya_webview_t *w, int code);
+int alya_webview_key_text(alya_webview_t *w, const char *text);
+
+/* Maps common key names ("Enter", "Escape", "Tab", "Backspace",
+ * "Delete", "Left", "Up", "Right", "Down", "Home", "End",
+ * "PageUp", "PageDown") to the platform code. Returns -1 when unknown. */
+int alya_webview_key_code(const char *name);
 
 int alya_webview_poll(alya_webview_t *w);
 int alya_webview_event_width(alya_webview_t *w);

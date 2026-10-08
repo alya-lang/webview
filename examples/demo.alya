@@ -63,6 +63,11 @@ function main()
         pkg::load_html(w, "<html><body><h1>Hello from Alya</h1></body></html>")
         let answer = pkg::eval_wait(w, "40+2", 800)
         say "JS 40+2 = " + answer
+        say "Zoom: set=" + str(pkg::set_zoom(w, 1.25)) + ", now=" + str(pkg::get_zoom(w))
+        pkg::mouse_move(w, 40, 40)
+        pkg::mouse_click(w, 0)
+        pkg::key_text(w, "hi")
+        say "Synthetic input posted."
     else
         say "Engine not attached — browsing calls skipped."
     end

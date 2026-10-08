@@ -97,6 +97,17 @@ WV_DECL(int, gtk_main_iteration_do, int blocking);
 WV_DECL(gulong, g_signal_connect_data, void *inst, const char *sig,
         void *handler, void *data, void *closure, int flags);
 WV_DECL(void *, webkit_web_view_new, void);
+WV_DECL(void *, webkit_web_view_new_with_context, void *ctx);
+WV_DECL(void *, webkit_web_context_new_ephemeral, void);
+WV_DECL(void *, webkit_web_context_new_with_website_data_manager,
+        void *manager);
+WV_DECL(void *, webkit_website_data_manager_new, const char *first, ...);
+WV_DECL(double, webkit_web_view_get_zoom_level, GtkWidget *v);
+WV_DECL(void, webkit_web_view_set_zoom_level, GtkWidget *v, double z);
+WV_DECL(void *, gtk_widget_get_window, GtkWidget *w);
+WV_DECL(void, gdk_event_put, void *ev);
+WV_DECL(void, gdk_event_free, void *ev);
+WV_DECL(unsigned int, gdk_unicode_to_keyval, unsigned int wc);
 WV_DECL(void, webkit_web_view_load_uri, GtkWidget *v, const char *uri);
 WV_DECL(void, webkit_web_view_load_html, GtkWidget *v, const char *html,
         const char *base_uri);
@@ -266,6 +277,17 @@ static int wv_load_all(void) {
     WV_LOAD_OPT(wv_h_webkit, webkit_web_view_run_javascript);
     WV_LOAD_OPT(wv_h_webkit, webkit_web_view_run_javascript_finish);
     WV_LOAD_OPT(wv_h_webkit, webkit_javascript_result_get_js_value);
+    // Launch/input/zoom surface: hard requirements.
+    WV_LOAD(wv_h_webkit, webkit_web_view_new_with_context);
+    WV_LOAD(wv_h_webkit, webkit_web_context_new_ephemeral);
+    WV_LOAD(wv_h_webkit, webkit_web_context_new_with_website_data_manager);
+    WV_LOAD(wv_h_webkit, webkit_website_data_manager_new);
+    WV_LOAD(wv_h_webkit, webkit_web_view_get_zoom_level);
+    WV_LOAD(wv_h_webkit, webkit_web_view_set_zoom_level);
+    WV_LOAD(wv_h_gtk, gtk_widget_get_window);
+    WV_LOAD(wv_h_gtk, gdk_event_put);
+    WV_LOAD(wv_h_gtk, gdk_event_free);
+    WV_LOAD(wv_h_gtk, gdk_unicode_to_keyval);
 
     ok = 1;
     return 1;
@@ -479,6 +501,68 @@ const char *alya_webview_backend_name(void) {
     return "linux";
 }
 
+/* Launch configuration (process-wide, consumed by create below). */
+static char wv_g_data_dir[1024];
+
+void alya_webview_set_data_dir(const char *path) {
+    if (path == NULL || path[0] == '\0') {
+        wv_g_data_dir[0] = '\0';
+        return;
+    }
+    strncpy(wv_g_data_dir, path, sizeof(wv_g_data_dir) - 1);
+    wv_g_data_dir[sizeof(wv_g_data_dir) - 1] = '\0';
+}
+
+void alya_webview_set_extra_args(const char *args) {
+    // No generic switch channel for WebKitGTK contexts in v1;
+    // WEBKIT_* tuning stays in the user's shell environment.
+    (void)args;
+}
+
+static GtkWidget *wv_new_view(int priv) {
+    void *ctx = NULL;
+    void *mgr = NULL;
+    GtkWidget *v;
+    if (priv) {
+        ctx = p_webkit_web_context_new_ephemeral();
+        if (ctx != NULL) {
+            v = (GtkWidget *)p_webkit_web_view_new_with_context(ctx);
+            if (v != NULL) {
+                return v;
+            }
+        }
+        // Fall through to the default view when ephemeral is missing.
+    } else if (wv_g_data_dir[0] != '\0') {
+        char ddata[1152];
+        char dcache[1152];
+        snprintf(ddata, sizeof(ddata), "%s/data", wv_g_data_dir);
+        snprintf(dcache, sizeof(dcache), "%s/cache", wv_g_data_dir);
+        mgr = p_webkit_website_data_manager_new("base-data-directory",
+                                                ddata,
+                                                "base-cache-directory",
+                                                dcache, NULL);
+        if (mgr != NULL) {
+            ctx = p_webkit_web_context_new_with_website_data_manager(mgr);
+            if (ctx != NULL) {
+                v = (GtkWidget *)p_webkit_web_view_new_with_context(ctx);
+                if (v != NULL) {
+                    return v;
+                }
+            }
+        }
+        // Fall through to the default view when custom dirs fail.
+    }
+    return (GtkWidget *)p_webkit_web_view_new();
+}
+
+static alya_webview_t *wv_create_inner(const char *title, int width,
+                                       int height, int priv);
+
+alya_webview_t *alya_webview_create_private(const char *title, int width,
+                                            int height) {
+    return wv_create_inner(title, width, height, 1);
+}
+
 int alya_webview_open_external(const char *url) {
     pid_t first;
     // Double fork so no zombie is left behind and no GTK is needed:
@@ -510,6 +594,11 @@ int alya_webview_open_external(const char *url) {
 
 alya_webview_t *alya_webview_create(const char *title, int width,
                                     int height) {
+    return wv_create_inner(title, width, height, 0);
+}
+
+static alya_webview_t *wv_create_inner(const char *title, int width,
+                                       int height, int priv) {
     alya_webview_t *w;
     void *ucm;
     void *settings;
@@ -547,7 +636,7 @@ alya_webview_t *alya_webview_create(const char *title, int width,
     p_gtk_window_set_title(w->win, title);
     p_gtk_window_set_default_size(w->win, width, height);
 
-    w->view = (GtkWidget *)p_webkit_web_view_new();
+    w->view = wv_new_view(priv);
     if (w->view == NULL) {
         p_gtk_widget_destroy(w->win);
         free(w);
@@ -838,6 +927,326 @@ int alya_webview_set_user_agent(alya_webview_t *w, const char *ua) {
     }
     p_webkit_settings_set_user_agent(settings, ua);
     return 1;
+}
+
+/* Synthetic input via hand-built GdkEvents (GTK3 LP64 ABI).
+ * Events target our own widget through gdk_event_put: no global
+ * side effects, no extra permissions. Coordinates are window client
+ * pixels, origin top-left. */
+
+// GdkEventType (stable since GTK2).
+#define WV_GDK_MOTION 3
+#define WV_GDK_PRESS 4
+#define WV_GDK_RELEASE 7
+#define WV_GDK_KEY_PRESS 8
+#define WV_GDK_KEY_RELEASE 9
+#define WV_GDK_SCROLL 31
+#define WV_GDK_SCROLL_SMOOTH 4
+
+typedef struct {
+    int type;
+    void *window;
+    signed char send_event;
+    unsigned int time;
+    double x;
+    double y;
+    double *axes;
+    unsigned int state;
+    int is_hint;
+    void *device;
+    double x_root;
+    double y_root;
+} wv_gdk_motion_t;
+
+typedef struct {
+    int type;
+    void *window;
+    signed char send_event;
+    unsigned int time;
+    double x;
+    double y;
+    double *axes;
+    unsigned int state;
+    unsigned int button;
+    void *device;
+    double x_root;
+    double y_root;
+} wv_gdk_button_t;
+
+typedef struct {
+    int type;
+    void *window;
+    signed char send_event;
+    unsigned int time;
+    double x;
+    double y;
+    double *axes;
+    unsigned int state;
+    int direction;
+    double x_root;
+    double y_root;
+    double delta_x;
+    double delta_y;
+    unsigned int is_stop;
+    void *device;
+} wv_gdk_scroll_t;
+
+typedef struct {
+    int type;
+    void *window;
+    signed char send_event;
+    unsigned int time;
+    unsigned int state;
+    unsigned int keyval;
+    int length;
+    char *string;
+    unsigned short hardware_keycode;
+    unsigned char group;
+    unsigned int is_modifier;
+} wv_gdk_key_t;
+
+static void *wv_widget_window(alya_webview_t *w) {
+    void *win;
+    if (w == NULL || w->view == NULL) {
+        return NULL;
+    }
+    win = p_gtk_widget_get_window(w->view);
+    return win;
+}
+
+static int wv_put_event(alya_webview_t *w, void *ev) {
+    if (w == NULL || ev == NULL) {
+        return 0;
+    }
+    p_gdk_event_put(ev);
+    p_gdk_event_free(ev);
+    return 1;
+}
+
+int alya_webview_mouse_move(alya_webview_t *w, int x, int y) {
+    wv_gdk_motion_t *ev;
+    if (wv_widget_window(w) == NULL) {
+        return 0;
+    }
+    ev = (wv_gdk_motion_t *)calloc(1, sizeof(*ev));
+    if (ev == NULL) {
+        return 0;
+    }
+    ev->type = WV_GDK_MOTION;
+    ev->window = wv_widget_window(w);
+    ev->send_event = 1;
+    ev->time = 0; // GDK_CURRENT_TIME
+    ev->x = (double)x;
+    ev->y = (double)y;
+    return wv_put_event(w, ev);
+}
+
+static int wv_mouse_btn(alya_webview_t *w, int button, int down) {
+    static const unsigned int gdk_btn[] = {1, 3, 2};
+    wv_gdk_button_t *ev;
+    if (wv_widget_window(w) == NULL) {
+        return 0;
+    }
+    if (button < 0 || button > 2) {
+        return 0;
+    }
+    ev = (wv_gdk_button_t *)calloc(1, sizeof(*ev));
+    if (ev == NULL) {
+        return 0;
+    }
+    ev->type = down ? WV_GDK_PRESS : WV_GDK_RELEASE;
+    ev->window = wv_widget_window(w);
+    ev->send_event = 1;
+    ev->time = 0;
+    ev->button = gdk_btn[button];
+    return wv_put_event(w, ev);
+}
+
+int alya_webview_mouse_down(alya_webview_t *w, int button) {
+    return wv_mouse_btn(w, button, 1);
+}
+
+int alya_webview_mouse_up(alya_webview_t *w, int button) {
+    return wv_mouse_btn(w, button, 0);
+}
+
+int alya_webview_mouse_click(alya_webview_t *w, int button) {
+    int d;
+    int u;
+    if (w == NULL || button < 0 || button > 2) {
+        return 0;
+    }
+    d = wv_mouse_btn(w, button, 1);
+    u = wv_mouse_btn(w, button, 0);
+    return (d && u) ? 1 : 0;
+}
+
+int alya_webview_mouse_wheel(alya_webview_t *w, int dx, int dy) {
+    wv_gdk_scroll_t *ev;
+    if (wv_widget_window(w) == NULL) {
+        return 0;
+    }
+    if (dx == 0 && dy == 0) {
+        return 0;
+    }
+    ev = (wv_gdk_scroll_t *)calloc(1, sizeof(*ev));
+    if (ev == NULL) {
+        return 0;
+    }
+    ev->type = WV_GDK_SCROLL;
+    ev->window = wv_widget_window(w);
+    ev->send_event = 1;
+    ev->time = 0;
+    ev->direction = WV_GDK_SCROLL_SMOOTH;
+    ev->delta_x = (double)dx;
+    ev->delta_y = (double)dy;
+    return wv_put_event(w, ev);
+}
+
+static int wv_post_keyval(alya_webview_t *w, unsigned int keyval,
+                          const char *text, int down) {
+    wv_gdk_key_t *ev;
+    if (wv_widget_window(w) == NULL) {
+        return 0;
+    }
+    ev = (wv_gdk_key_t *)calloc(1, sizeof(*ev));
+    if (ev == NULL) {
+        return 0;
+    }
+    ev->type = down ? WV_GDK_KEY_PRESS : WV_GDK_KEY_RELEASE;
+    ev->window = wv_widget_window(w);
+    ev->send_event = 1;
+    ev->time = 0;
+    ev->state = 0;
+    ev->keyval = keyval;
+    if (text != NULL) {
+        ev->length = (int)strlen(text);
+        ev->string = (char *)text; // copied by gdk_event_put
+    }
+    ev->hardware_keycode = 0;
+    ev->group = 0;
+    ev->is_modifier = 0;
+    return wv_put_event(w, ev);
+}
+
+int alya_webview_key_down(alya_webview_t *w, int code) {
+    if (code <= 0) {
+        return 0;
+    }
+    return wv_post_keyval(w, (unsigned int)code, NULL, 1);
+}
+
+int alya_webview_key_up(alya_webview_t *w, int code) {
+    if (code <= 0) {
+        return 0;
+    }
+    return wv_post_keyval(w, (unsigned int)code, NULL, 0);
+}
+
+int alya_webview_key_tap(alya_webview_t *w, int code) {
+    int d;
+    int u;
+    if (w == NULL || code <= 0) {
+        return 0;
+    }
+    d = wv_post_keyval(w, (unsigned int)code, NULL, 1);
+    u = wv_post_keyval(w, (unsigned int)code, NULL, 0);
+    return (d && u) ? 1 : 0;
+}
+
+static int wv_utf8_next(const unsigned char *p, unsigned int *cp) {
+    if ((*p & 0x80) == 0) {
+        *cp = *p;
+        return 1;
+    } else if ((*p & 0xE0) == 0xC0) {
+        *cp = ((unsigned int)(p[0] & 0x1F) << 6) |
+              (unsigned int)(p[1] & 0x3F);
+        return 2;
+    } else if ((*p & 0xF0) == 0xE0) {
+        *cp = ((unsigned int)(p[0] & 0x0F) << 12) |
+              ((unsigned int)(p[1] & 0x3F) << 6) |
+              (unsigned int)(p[2] & 0x3F);
+        return 3;
+    } else if ((*p & 0xF8) == 0xF0) {
+        *cp = ((unsigned int)(p[0] & 0x07) << 18) |
+              ((unsigned int)(p[1] & 0x3F) << 12) |
+              ((unsigned int)(p[2] & 0x3F) << 6) |
+              (unsigned int)(p[3] & 0x3F);
+        return 4;
+    }
+    *cp = *p;
+    return 1;
+}
+
+int alya_webview_key_text(alya_webview_t *w, const char *text) {
+    const unsigned char *p;
+    int ok = 0;
+    if (w == NULL || text == NULL || text[0] == '\0') {
+        return 0;
+    }
+    if (wv_widget_window(w) == NULL) {
+        return 0;
+    }
+    p = (const unsigned char *)text;
+    while (*p != '\0') {
+        unsigned int cp;
+        unsigned int kv;
+        char one[5];
+        int n = wv_utf8_next(p, &cp);
+        if (n > 4) {
+            n = 1;
+        }
+        memcpy(one, p, (size_t)n);
+        one[n] = '\0';
+        kv = p_gdk_unicode_to_keyval(cp);
+        if (wv_post_keyval(w, kv, one, 1)) {
+            ok = 1;
+        }
+        wv_post_keyval(w, kv, one, 0);
+        p += n;
+    }
+    return ok;
+}
+
+int alya_webview_key_code(const char *name) {
+    static const struct {
+        const char *name;
+        int code;
+    } map[] = {{"Enter", 0xFF0D},    {"Escape", 0xFF1B},
+               {"Tab", 0xFF09},      {"Backspace", 0xFF08},
+               {"Delete", 0xFFFF},   {"Left", 0xFF51},
+               {"Up", 0xFF52},       {"Right", 0xFF53},
+               {"Down", 0xFF54},     {"Home", 0xFF50},
+               {"End", 0xFF57},      {"PageUp", 0xFF55},
+               {"PageDown", 0xFF56}, {NULL, -1}};
+    int i;
+    if (name == NULL) {
+        return -1;
+    }
+    for (i = 0; map[i].name != NULL; i++) {
+        if (strcmp(name, map[i].name) == 0) {
+            return map[i].code;
+        }
+    }
+    return -1;
+}
+
+int alya_webview_set_zoom(alya_webview_t *w, double factor) {
+    if (w == NULL || w->view == NULL) {
+        return 0;
+    }
+    if (factor < 0.25 || factor > 5.0) {
+        return 0;
+    }
+    p_webkit_web_view_set_zoom_level(w->view, factor);
+    return 1;
+}
+
+double alya_webview_get_zoom(alya_webview_t *w) {
+    if (w == NULL || w->view == NULL) {
+        return 0.0;
+    }
+    return p_webkit_web_view_get_zoom_level(w->view);
 }
 
 int alya_webview_poll(alya_webview_t *w) {

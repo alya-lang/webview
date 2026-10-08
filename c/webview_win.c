@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wchar.h>
 
 #include "webview.h"
 
@@ -42,10 +43,13 @@ typedef struct {
 
 struct alya_webview {
     HWND hwnd;
+    HWND child; // WebView2 content child (resolved lazily, may be NULL)
     int32_t open;
     int32_t ready;
     int32_t width;
     int32_t height;
+    int32_t mouse_x; // last injected cursor position (client pixels)
+    int32_t mouse_y;
     int32_t eval_state;
     char url[ALYA_WEBVIEW_URL_CAP];
     char title[ALYA_WEBVIEW_TEXT_CAP];
@@ -655,6 +659,57 @@ const char *alya_webview_backend_name(void) {
     return "windows";
 }
 
+/* Launch configuration (process-wide, consumed by create below). */
+static wchar_t wv_g_data_dir[MAX_PATH * 2];
+static int wv_g_data_dir_set = 0;
+static LONG wv_g_private_seq = 0;
+
+void alya_webview_set_data_dir(const char *path) {
+    wchar_t *w;
+    if (path == NULL || path[0] == '\0') {
+        wv_g_data_dir_set = 0;
+        return;
+    }
+    w = wv_utf8_to_wide(path);
+    if (w == NULL) {
+        return;
+    }
+    wcsncpy(wv_g_data_dir, w, (sizeof(wv_g_data_dir) / sizeof(wchar_t)) - 1);
+    wv_g_data_dir[(sizeof(wv_g_data_dir) / sizeof(wchar_t)) - 1] = L'\0';
+    free(w);
+    wv_g_data_dir_set = 1;
+}
+
+void alya_webview_set_extra_args(const char *args) {
+    // Honored by the WebView2 loader as additional Chromium switches.
+    // Must precede environment creation, i.e. set before open().
+    wchar_t *w;
+    if (args == NULL || args[0] == '\0') {
+        SetEnvironmentVariableW(L"WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+                                NULL);
+        return;
+    }
+    w = wv_utf8_to_wide(args);
+    if (w == NULL) {
+        return;
+    }
+    SetEnvironmentVariableW(L"WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", w);
+    free(w);
+}
+
+static alya_webview_t *wv_create_inner(const char *title, int width,
+                                       int height, int priv);
+
+alya_webview_t *alya_webview_create(const char *title, int width,
+                                    int height) {
+    return wv_create_inner(title, width, height, 0);
+}
+
+alya_webview_t *alya_webview_create_private(const char *title, int width,
+                                            int height) {
+    return wv_create_inner(title, width, height, 1);
+}
+
 int alya_webview_open_external(const char *url) {
     wchar_t *u;
     HINSTANCE rc;
@@ -670,8 +725,8 @@ int alya_webview_open_external(const char *url) {
     return ((INT_PTR)rc > 32) ? 1 : 0;
 }
 
-alya_webview_t *alya_webview_create(const char *title, int width,
-                                    int height) {
+static alya_webview_t *wv_create_inner(const char *title, int width,
+                                              int height, int priv) {
     alya_webview_t *w;
     WNDCLASSW kc;
     wchar_t *wtitle = NULL;
@@ -765,9 +820,26 @@ alya_webview_t *alya_webview_create(const char *title, int width,
         goto no_engine;
     }
 
-    // Private user-data folder under %TEMP%.
+    // User-data folder: explicit override, fresh unique dir for
+    // private windows, per-process default otherwise.
     tn = GetTempPathW(MAX_PATH, tmp);
-    if (tn > 0 && tn < MAX_PATH) {
+    if (wv_g_data_dir_set) {
+        wcsncpy(data_dir, wv_g_data_dir,
+                (sizeof(data_dir) / sizeof(data_dir[0])) - 1);
+        data_dir[(sizeof(data_dir) / sizeof(data_dir[0])) - 1] = L'\0';
+        CreateDirectoryW(data_dir, NULL);
+        wdata = data_dir;
+    } else if (priv) {
+        LONG seq = InterlockedIncrement(&wv_g_private_seq);
+        if (tn > 0 && tn < MAX_PATH) {
+            _snwprintf(data_dir, sizeof(data_dir) / sizeof(data_dir[0]),
+                       L"%salya_webview_p%lu_%ld", tmp,
+                       (unsigned long)GetCurrentProcessId(), seq);
+            data_dir[(sizeof(data_dir) / sizeof(data_dir[0])) - 1] = L'\0';
+            CreateDirectoryW(data_dir, NULL);
+            wdata = data_dir;
+        }
+    } else if (tn > 0 && tn < MAX_PATH) {
         _snwprintf(data_dir, sizeof(data_dir) / sizeof(data_dir[0]),
                    L"%salya_webview_%lu", tmp,
                    (unsigned long)GetCurrentProcessId());
@@ -1119,6 +1191,244 @@ int alya_webview_set_user_agent(alya_webview_t *w, const char *ua) {
     (void)w;
     (void)ua;
     return 0;
+}
+
+/* Synthetic input: posted to the WebView2 content child window.
+ * Pure Win32, no COM involved. Keys need keyboard focus on the child;
+ * mouse events work regardless of focus. */
+
+static BOOL CALLBACK wv_enum_child(HWND h, LPARAM lp) {
+    wchar_t cls[64];
+    if (GetClassNameW(h, cls, 64) > 0 &&
+        wcscmp(cls, L"Chrome_WidgetWin_1") == 0) {
+        *(HWND *)lp = h;
+        return FALSE;
+    }
+    return TRUE;
+}
+
+static HWND wv_content_child(alya_webview_t *w) {
+    if (w == NULL || w->hwnd == NULL) {
+        return NULL;
+    }
+    if (w->child != NULL && IsWindow(w->child)) {
+        return w->child;
+    }
+    w->child = NULL;
+    EnumChildWindows(w->hwnd, wv_enum_child, (LPARAM)&w->child);
+    return w->child;
+}
+
+int alya_webview_mouse_move(alya_webview_t *w, int x, int y) {
+    HWND c;
+    if (w == NULL) {
+        return 0;
+    }
+    w->mouse_x = x;
+    w->mouse_y = y;
+    c = wv_content_child(w);
+    if (c == NULL) {
+        return 0;
+    }
+    return PostMessageW(c, WM_MOUSEMOVE, 0, MAKELPARAM(x, y)) ? 1 : 0;
+}
+
+static int wv_mouse_btn(alya_webview_t *w, int button, int down) {
+    HWND c;
+    UINT msg = 0;
+    WPARAM flags = 0;
+    if (w == NULL) {
+        return 0;
+    }
+    if (button == 0) {
+        msg = down ? WM_LBUTTONDOWN : WM_LBUTTONUP;
+        flags = MK_LBUTTON;
+    } else if (button == 1) {
+        msg = down ? WM_RBUTTONDOWN : WM_RBUTTONUP;
+        flags = MK_RBUTTON;
+    } else if (button == 2) {
+        msg = down ? WM_MBUTTONDOWN : WM_MBUTTONUP;
+        flags = MK_MBUTTON;
+    } else {
+        return 0;
+    }
+    c = wv_content_child(w);
+    if (c == NULL) {
+        return 0;
+    }
+    if (!down) {
+        flags = 0;
+    }
+    return PostMessageW(c, msg, flags,
+                        MAKELPARAM(w->mouse_x, w->mouse_y))
+               ? 1
+               : 0;
+}
+
+int alya_webview_mouse_down(alya_webview_t *w, int button) {
+    return wv_mouse_btn(w, button, 1);
+}
+
+int alya_webview_mouse_up(alya_webview_t *w, int button) {
+    return wv_mouse_btn(w, button, 0);
+}
+
+int alya_webview_mouse_click(alya_webview_t *w, int button) {
+    int d;
+    int u;
+    if (w == NULL || button < 0 || button > 2) {
+        return 0;
+    }
+    d = wv_mouse_btn(w, button, 1);
+    u = wv_mouse_btn(w, button, 0);
+    return (d && u) ? 1 : 0;
+}
+
+int alya_webview_mouse_wheel(alya_webview_t *w, int dx, int dy) {
+    HWND c;
+    int posted = 0;
+    if (w == NULL) {
+        return 0;
+    }
+    c = wv_content_child(w);
+    if (c == NULL) {
+        return 0;
+    }
+    if (dy != 0 && PostMessageW(c, WM_MOUSEWHEEL,
+                                MAKEWPARAM(0, (short)(dy * 120)),
+                                MAKELPARAM(w->mouse_x, w->mouse_y))) {
+        posted = 1;
+    }
+    if (dx != 0 && PostMessageW(c, WM_MOUSEHWHEEL,
+                                MAKEWPARAM(0, (short)(dx * 120)),
+                                MAKELPARAM(w->mouse_x, w->mouse_y))) {
+        posted = 1;
+    }
+    return posted;
+}
+
+static int wv_is_extended_vk(int code) {
+    switch (code) {
+    case VK_LEFT:
+    case VK_RIGHT:
+    case VK_UP:
+    case VK_DOWN:
+    case VK_HOME:
+    case VK_END:
+    case VK_INSERT:
+    case VK_DELETE:
+    case VK_PRIOR:
+    case VK_NEXT:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+static int wv_post_key(alya_webview_t *w, int code, int down) {
+    HWND c;
+    UINT sc;
+    LPARAM lp;
+    if (w == NULL || code <= 0 || code > 255) {
+        return 0;
+    }
+    c = wv_content_child(w);
+    if (c == NULL) {
+        return 0;
+    }
+    sc = MapVirtualKeyW((UINT)code, MAPVK_VK_TO_VSC);
+    lp = 1 | ((LPARAM)sc << 16);
+    if (wv_is_extended_vk(code)) {
+        lp |= (1 << 24);
+    }
+    if (!down) {
+        lp |= ((LPARAM)1 << 30) | ((LPARAM)1 << 31);
+    }
+    return PostMessageW(c, down ? WM_KEYDOWN : WM_KEYUP, (WPARAM)code, lp)
+               ? 1
+               : 0;
+}
+
+int alya_webview_key_down(alya_webview_t *w, int code) {
+    return wv_post_key(w, code, 1);
+}
+
+int alya_webview_key_up(alya_webview_t *w, int code) {
+    return wv_post_key(w, code, 0);
+}
+
+int alya_webview_key_tap(alya_webview_t *w, int code) {
+    int d;
+    int u;
+    if (w == NULL) {
+        return 0;
+    }
+    d = wv_post_key(w, code, 1);
+    u = wv_post_key(w, code, 0);
+    return (d && u) ? 1 : 0;
+}
+
+int alya_webview_key_text(alya_webview_t *w, const char *text) {
+    HWND c;
+    wchar_t *u;
+    size_t i;
+    size_t n;
+    int posted = 0;
+    if (w == NULL || text == NULL || text[0] == '\0') {
+        return 0;
+    }
+    c = wv_content_child(w);
+    if (c == NULL) {
+        return 0;
+    }
+    u = wv_utf8_to_wide(text);
+    if (u == NULL) {
+        return 0;
+    }
+    n = wcslen(u);
+    for (i = 0; i < n; i++) {
+        if (PostMessageW(c, WM_CHAR, (WPARAM)u[i], 1)) {
+            posted = 1;
+        }
+    }
+    free(u);
+    return posted;
+}
+
+int alya_webview_key_code(const char *name) {
+    static const struct {
+        const char *name;
+        int code;
+    } map[] = {{"Enter", VK_RETURN},     {"Escape", VK_ESCAPE},
+               {"Tab", VK_TAB},          {"Backspace", VK_BACK},
+               {"Delete", VK_DELETE},    {"Left", VK_LEFT},
+               {"Up", VK_UP},            {"Right", VK_RIGHT},
+               {"Down", VK_DOWN},        {"Home", VK_HOME},
+               {"End", VK_END},          {"PageUp", VK_PRIOR},
+               {"PageDown", VK_NEXT},    {NULL, -1}};
+    int i;
+    if (name == NULL) {
+        return -1;
+    }
+    for (i = 0; map[i].name != NULL; i++) {
+        if (strcmp(name, map[i].name) == 0) {
+            return map[i].code;
+        }
+    }
+    return -1;
+}
+
+int alya_webview_set_zoom(alya_webview_t *w, double factor) {
+    // ZoomFactor vtable slots are unverified on current runtimes
+    // (see slot-map note above): report unsupported, never fault.
+    (void)w;
+    (void)factor;
+    return 0;
+}
+
+double alya_webview_get_zoom(alya_webview_t *w) {
+    (void)w;
+    return 0.0;
 }
 
 int alya_webview_poll(alya_webview_t *w) {

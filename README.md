@@ -130,6 +130,19 @@ main()
 | `backend()` | `pub function` | Returns `"windows"`, `"macos"`, or `"linux"` for the compiled target. |
 | `backend_id()` | `pub function` | Returns `1` (Windows), `2` (macOS), or `3` (Linux). |
 | `open(title, width, height)` | `pub function` | Opens a browser window; null without display or engine. |
+| `open_private(title, width, height)` | `pub function` | Opens an incognito window (no persistent profile). |
+| `set_data_dir(path)` | `pub function` | Profile folder for subsequently opened windows (Win/Linux). |
+| `set_extra_args(args)` | `pub function` | Extra Chromium switches for subsequently opened windows (Win). |
+| `set_zoom(win, factor)` | `pub function` | Page zoom (`1.0` = 100%, `1` when applied). |
+| `get_zoom(win)` | `pub function` | Current zoom factor (`0.0` when unknown). |
+| `mouse_move(win, x, y)` | `pub function` | Synthetic cursor move over client pixels. |
+| `mouse_down(win, button)` / `mouse_up(win, button)` | `pub function` | Synthetic button press/release (`0` left, `1` right, `2` middle). |
+| `mouse_click(win, button)` | `pub function` | Synthetic click (press + release). |
+| `mouse_wheel(win, dx, dy)` | `pub function` | Synthetic scroll detents. |
+| `key_down(win, code)` / `key_up(win, code)` | `pub function` | Synthetic key press/release (platform code; needs focus). |
+| `key_tap(win, code)` | `pub function` | Synthetic key tap (press + release). |
+| `key_text(win, text)` | `pub function` | Commits printable text to the page. |
+| `key_code(name)` | `pub function` | Maps `"Enter"`, `"Escape"`, `"Tab"`, … to the platform code (`-1` unknown). |
 | `open_external(url)` | `pub function` | Opens a URL in the default browser; `1` when attempted (opt-in fallback). |
 | `destroy(win)` | `pub function` | Destroys a handle (null-safe, always `1`). |
 | `show(win)` / `hide(win)` | `pub function` | Shows or hides a window (null-safe). |
@@ -167,8 +180,9 @@ main()
 
 ### 🔭 Roadmap (v1.1)
 
-- Re-verify the remaining WebView2 vtable slots against real SDK headers (script toggle, user-agent via `Settings2`).
+- Re-verify the remaining WebView2 vtable slots against real SDK headers (script toggle, user-agent via `Settings2`, zoom factor).
 - Drive-by verification of the macOS (`WKWebView`) and Linux (`WebKitGTK`) backends on native runners.
+- Cookies (`CookieManager`), downloads (`DownloadStarting` + destination), DevTools protocol (`CallDevToolsProtocolMethod`), print-to-PDF, page capture, script dialogs, permission requests, custom schemes.
 - Page-side JS bridge helper (unified `window.alya` inbox on top of the platform channels).
 
 > [!TIP]

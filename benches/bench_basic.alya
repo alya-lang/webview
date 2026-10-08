@@ -59,6 +59,15 @@ function main()
     end
     bench_stop(runner, "backend_id() 200k calls")
 
+    # Bench 6: key code map — 100k iterations
+    bench_start(runner, 100000)
+    let t = 0
+    while t < 100000
+        pkg::key_code("Enter")
+        t += 1
+    end
+    bench_stop(runner, "key_code() 100k calls")
+
     bench_summary(runner)
 end
 

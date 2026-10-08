@@ -14,6 +14,21 @@ extern "C" from "webview"
     function alya_webview_backend_id() -> i32
     function alya_webview_backend_name() -> str
     function alya_webview_open_external(url: str) -> i32
+    function alya_webview_create_private(title: str, width: i32, height: i32) -> ptr
+    function alya_webview_set_data_dir(path: str) -> void
+    function alya_webview_set_extra_args(args: str) -> void
+    function alya_webview_set_zoom(w: ptr, factor: f64) -> i32
+    function alya_webview_get_zoom(w: ptr) -> f64
+    function alya_webview_mouse_move(w: ptr, x: i32, y: i32) -> i32
+    function alya_webview_mouse_down(w: ptr, button: i32) -> i32
+    function alya_webview_mouse_up(w: ptr, button: i32) -> i32
+    function alya_webview_mouse_click(w: ptr, button: i32) -> i32
+    function alya_webview_mouse_wheel(w: ptr, dx: i32, dy: i32) -> i32
+    function alya_webview_key_down(w: ptr, code: i32) -> i32
+    function alya_webview_key_up(w: ptr, code: i32) -> i32
+    function alya_webview_key_tap(w: ptr, code: i32) -> i32
+    function alya_webview_key_text(w: ptr, text: str) -> i32
+    function alya_webview_key_code(name: str) -> i32
     function alya_webview_create(title: str, width: i32, height: i32) -> ptr
     function alya_webview_destroy(w: ptr) -> void
     function alya_webview_show(w: ptr) -> void
@@ -67,6 +82,149 @@ pub function native_browser_open_external(url: string) -> int
         return false
     end
     return alya_webview_open_external(url)
+end
+
+## Opens a private (incognito) window; no persistent profile is kept.
+## Null when no display or engine is available.
+pub function native_browser_open_private(title: string, width: int, height: int)
+    if title is null or title == ""
+        title = "Alya"
+    end
+    if width <= 0
+        width = 800
+    end
+    if height <= 0
+        height = 600
+    end
+    return alya_webview_create_private(title, width, height)
+end
+
+## Sets the profile data folder for subsequently opened windows
+## (Windows/Linux; ignored on macOS). Empty string resets to default.
+pub function native_browser_set_data_dir(path: string) -> int
+    if path is null
+        path = ""
+    end
+    alya_webview_set_data_dir(path)
+    return true
+end
+
+## Sets extra Chromium switches for subsequently opened windows
+## (Windows only; ignored elsewhere). Empty string clears them.
+pub function native_browser_set_extra_args(args: string) -> int
+    if args is null
+        args = ""
+    end
+    alya_webview_set_extra_args(args)
+    return true
+end
+
+## Sets the page zoom factor (`1.0` = 100%, range `0.25..5.0`).
+## Returns `1` when applied (`0` where the backend cannot zoom).
+pub function native_browser_set_zoom(win, factor: float) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_set_zoom(win, factor as f64)
+end
+
+## Returns the current zoom factor (`0.0` when unknown).
+pub function native_browser_get_zoom(win) -> float
+    if win is null
+        return 0.0
+    end
+    return alya_webview_get_zoom(win) as float
+end
+
+## Moves the synthetic cursor over client pixel (`x`, `y`).
+## Returns `1` when posted.
+pub function native_browser_mouse_move(win, x: int, y: int) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_mouse_move(win, x, y)
+end
+
+## Presses a mouse button (`0` left, `1` right, `2` middle).
+## Returns `1` when posted.
+pub function native_browser_mouse_down(win, button: int) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_mouse_down(win, button)
+end
+
+## Releases a mouse button (`0` left, `1` right, `2` middle).
+## Returns `1` when posted.
+pub function native_browser_mouse_up(win, button: int) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_mouse_up(win, button)
+end
+
+## Clicks a mouse button (press + release at the cursor position).
+## Returns `1` when posted.
+pub function native_browser_mouse_click(win, button: int = 0) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_mouse_click(win, button)
+end
+
+## Scrolls by (`dx`, `dy`) detents at the cursor position.
+## Returns `1` when posted.
+pub function native_browser_mouse_wheel(win, dx: int, dy: int) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_mouse_wheel(win, dx, dy)
+end
+
+## Presses a key (`code` is platform-native, see `native_browser_key_code`).
+## Keys need keyboard focus on the page. Returns `1` when posted.
+pub function native_browser_key_down(win, code: int) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_key_down(win, code)
+end
+
+## Releases a key. Returns `1` when posted.
+pub function native_browser_key_up(win, code: int) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_key_up(win, code)
+end
+
+## Taps a key (press + release). Returns `1` when posted.
+pub function native_browser_key_tap(win, code: int) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_key_tap(win, code)
+end
+
+## Commits printable text to the page. Returns `1` when posted.
+pub function native_browser_key_text(win, text: string) -> int
+    if win is null
+        return false
+    end
+    if text is null or text == ""
+        return false
+    end
+    return alya_webview_key_text(win, text)
+end
+
+## Maps a key name (`"Enter"`, `"Escape"`, `"Tab"`, `"Backspace"`,
+## `"Delete"`, `"Left"`, `"Up"`, `"Right"`, `"Down"`, `"Home"`, `"End"`,
+## `"PageUp"`, `"PageDown"`) to the platform code. `-1` when unknown.
+pub function native_browser_key_code(name: string) -> int
+    if name is null or name == ""
+        return -1
+    end
+    return alya_webview_key_code(name)
 end
 
 ## Opens a browser window; null when no display or engine is available.

@@ -48,6 +48,81 @@ pub function open(title: string = "Alya", width: int = 800, height: int = 600)
     return native_browser_open(title, width, height)
 end
 
+## Opens a private (incognito) window; no persistent profile is kept.
+pub function open_private(title: string = "Alya", width: int = 800, height: int = 600)
+    return native_browser_open_private(title, width, height)
+end
+
+## Sets the profile data folder for subsequently opened windows.
+pub function set_data_dir(path: string) -> int
+    return native_browser_set_data_dir(path)
+end
+
+## Sets extra Chromium switches for subsequently opened windows.
+pub function set_extra_args(args: string) -> int
+    return native_browser_set_extra_args(args)
+end
+
+## Sets the page zoom factor (`1.0` = 100%).
+pub function set_zoom(win, factor: float) -> int
+    return native_browser_set_zoom(win, factor)
+end
+
+## Returns the current zoom factor (`0.0` when unknown).
+pub function get_zoom(win) -> float
+    return native_browser_get_zoom(win)
+end
+
+## Moves the synthetic cursor over client pixel (`x`, `y`).
+pub function mouse_move(win, x: int, y: int) -> int
+    return native_browser_mouse_move(win, x, y)
+end
+
+## Presses a mouse button (`0` left, `1` right, `2` middle).
+pub function mouse_down(win, button: int) -> int
+    return native_browser_mouse_down(win, button)
+end
+
+## Releases a mouse button (`0` left, `1` right, `2` middle).
+pub function mouse_up(win, button: int) -> int
+    return native_browser_mouse_up(win, button)
+end
+
+## Clicks a mouse button (press + release at the cursor position).
+pub function mouse_click(win, button: int = 0) -> int
+    return native_browser_mouse_click(win, button)
+end
+
+## Scrolls by (`dx`, `dy`) detents at the cursor position.
+pub function mouse_wheel(win, dx: int, dy: int) -> int
+    return native_browser_mouse_wheel(win, dx, dy)
+end
+
+## Presses a key (platform code, see `key_code`).
+pub function key_down(win, code: int) -> int
+    return native_browser_key_down(win, code)
+end
+
+## Releases a key.
+pub function key_up(win, code: int) -> int
+    return native_browser_key_up(win, code)
+end
+
+## Taps a key (press + release).
+pub function key_tap(win, code: int) -> int
+    return native_browser_key_tap(win, code)
+end
+
+## Commits printable text to the page.
+pub function key_text(win, text: string) -> int
+    return native_browser_key_text(win, text)
+end
+
+## Maps a key name to the platform code (`-1` when unknown).
+pub function key_code(name: string) -> int
+    return native_browser_key_code(name)
+end
+
 ## Destroys a browser window handle (null-safe).
 pub function destroy(win) -> int
     return native_browser_close_handle(win)
