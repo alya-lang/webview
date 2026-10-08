@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 // --- Objective-C runtime C API (declared manually, no headers needed) ---
 
@@ -113,6 +114,7 @@ struct alya_webview {
     int height;
     int eval_state;
     int eval_pending; // a completion block is still outstanding
+    uint64_t eval_seq; // sequence counter for eval completions
     int allow_menu;   // native context menu policy (default 1)
     int block_keys;   // shortcut-blocking user script installed
     int is_fullscreen;
@@ -198,8 +200,17 @@ static void wv_pool_pop(id pool) {
 
 static void wv_push(alya_webview_t *w, int kind) {
     int next;
+    int prev;
     if (w == NULL) {
         return;
+    }
+    // Deduplicate consecutive identical NAV_DONE events for the same URL
+    if (kind == ALYA_WEBVIEW_EVENT_NAV_DONE && w->head != w->tail) {
+        prev = (w->tail - 1 + WV_MAX_EVENTS) % WV_MAX_EVENTS;
+        if (w->queue[prev].kind == ALYA_WEBVIEW_EVENT_NAV_DONE &&
+            strcmp(w->queue[prev].url, w->url) == 0) {
+            return;
+        }
     }
     next = (w->tail + 1) % WV_MAX_EVENTS;
     if (next == w->head) {
@@ -396,6 +407,7 @@ typedef struct wv_block {
     void (*invoke)(void *blk, id result, id error);
     wv_blk_desc_t *desc;
     alya_webview_t *w;
+    uint64_t seq;
 } wv_block_t;
 
 static wv_blk_desc_t wv_blk_desc = {0, sizeof(wv_block_t)};
@@ -405,6 +417,11 @@ static void wv_js_invoke(void *blk, id result, id error) {
     wv_block_t *b = (wv_block_t *)blk;
     alya_webview_t *w = (b != NULL) ? b->w : NULL;
     if (w != NULL) {
+        // Discard stale completions from earlier fire-and-forget evals
+        if (b->seq != w->eval_seq) {
+            wv_pool_pop(pool);
+            return;
+        }
         if (error == NULL) {
             if (result == NULL) {
                 w->eval_result[0] = '\0';
@@ -455,6 +472,7 @@ static int wv_fire_js(alya_webview_t *w, const char *js) {
     b.invoke = wv_js_invoke;
     b.desc = &wv_blk_desc;
     b.w = w;
+    b.seq = ++w->eval_seq;
     code = wv_nsstr(js);
     w->eval_state = ALYA_WEBVIEW_EVAL_PENDING;
     w->eval_result[0] = '\0';
@@ -540,6 +558,7 @@ static const char *wv_mime_for(const char *path) {
                {".svg", "image/svg+xml"},
                {".ico", "image/x-icon"},
                {".txt", "text/plain"},
+               {".alya", "text/plain"},
                {".wasm", "application/wasm"},
                {".mp4", "video/mp4"},
                {".webm", "video/webm"},
@@ -549,14 +568,14 @@ static const char *wv_mime_for(const char *path) {
     const char *dot = strrchr(path, '.');
     int i;
     if (dot == NULL) {
-        return "application/octet-stream";
+        return "text/plain";
     }
     for (i = 0; map[i].ext != NULL; i++) {
         if (strcmp(dot, map[i].ext) == 0) {
             return map[i].mime;
         }
     }
-    return "application/octet-stream";
+    return "text/plain";
 }
 
 static void wv_scheme_fail(id task) {
@@ -584,7 +603,6 @@ static void wv_scheme_start(id self, SEL cmd, id webview, id task) {
     char *data;
     (void)self;
     (void)cmd;
-    (void)webview;
     if (task == NULL) {
         return;
     }
@@ -626,14 +644,18 @@ static void wv_scheme_start(id self, SEL cmd, id webview, id task) {
     if (slash == NULL || slash[1] == '\0') {
         snprintf(full, sizeof(full), "%s/index.html", wv_maps[i].folder);
     } else {
-        if (strstr(slash, "..") != NULL) {
+        const char *rel = (slash[0] == '/') ? slash + 1 : slash;
+        if (strstr(rel, "..") != NULL) {
             wv_pool_pop(pool);
             wv_scheme_fail(task);
             return;
         }
-        snprintf(full, sizeof(full), "%s%s", wv_maps[i].folder, slash);
+        snprintf(full, sizeof(full), "%s/%s", wv_maps[i].folder, rel);
     }
     f = fopen(full, "rb");
+    if (f == NULL && full[0] == '.' && full[1] == '/') {
+        f = fopen(full + 2, "rb");
+    }
     if (f == NULL) {
         wv_pool_pop(pool);
         wv_scheme_fail(task);
@@ -673,11 +695,20 @@ static void wv_scheme_start(id self, SEL cmd, id webview, id task) {
                         wv_sel("alloc"));
         resp = wv_send4(id, resp,
                         wv_sel("initWithURL:MIMEType:expectedContentLength:textEncodingName:"),
-                        url, wv_nsstr(wv_mime_for(full)), (long)size, NULL);
+                        url, wv_nsstr(wv_mime_for(full)), (long)size,
+                        wv_nsstr("utf-8"));
         wv_send1(void, task, wv_sel("didReceiveResponse:"), resp);
         wv_send1(void, task, wv_sel("didReceiveData:"), dataObj);
         wv_send0(void, task, wv_sel("didFinish"));
         wv_send0(void, resp, wv_sel("release"));
+    }
+    if (webview != NULL) {
+        id del = wv_send0(id, webview, wv_sel("navigationDelegate"));
+        alya_webview_t *w = wv_ctx_of(del);
+        if (w != NULL) {
+            wv_copy(w->url, sizeof(w->url), abs);
+            wv_push(w, ALYA_WEBVIEW_EVENT_NAV_DONE);
+        }
     }
     wv_pool_pop(pool);
 }
