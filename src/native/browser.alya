@@ -30,6 +30,9 @@ extern "C" from "webview"
     function alya_webview_key_tap(w: ptr, code: i32) -> i32
     function alya_webview_key_text(w: ptr, text: str) -> i32
     function alya_webview_key_code(name: str) -> i32
+    function alya_webview_get_data_dir() -> str
+    function alya_webview_get_extra_args() -> str
+    function alya_webview_profile_path(w: ptr) -> str
     function alya_webview_create(title: str, width: i32, height: i32) -> ptr
     function alya_webview_destroy(w: ptr) -> void
     function alya_webview_show(w: ptr) -> void
@@ -295,6 +298,36 @@ pub function native_browser_set_charset(win, cs: string) -> int
         cs = "UTF-8"
     end
     return alya_webview_set_charset(win, cs)
+end
+
+## Returns the configured profile folder (`""` when default).
+pub function native_browser_data_dir() -> string
+    let d = alya_webview_get_data_dir()
+    if d is null
+        return ""
+    end
+    return d
+end
+
+## Returns the configured extra switches (`""` when none).
+pub function native_browser_extra_args() -> string
+    let a = alya_webview_get_extra_args()
+    if a is null
+        return ""
+    end
+    return a
+end
+
+## Returns the actual folder backing an open window (`""` when none).
+pub function native_browser_profile_path(win) -> string
+    if win is null
+        return ""
+    end
+    let p = alya_webview_profile_path(win)
+    if p is null
+        return ""
+    end
+    return p
 end
 
 ## Opens a browser window; null when no display or engine is available.

@@ -44,6 +44,7 @@ typedef struct {
 struct alya_webview {
     HWND hwnd;
     HWND child; // WebView2 content child (resolved lazily, may be NULL)
+    char profile[512]; // actual user-data dir ("" when engine-less)
     int32_t open;
     int32_t ready;
     int32_t width;
@@ -662,6 +663,7 @@ const char *alya_webview_backend_name(void) {
 /* Launch configuration (process-wide, consumed by create below). */
 static wchar_t wv_g_data_dir[MAX_PATH * 2];
 static int wv_g_data_dir_set = 0;
+static char wv_g_extra_args[2048];
 static LONG wv_g_private_seq = 0;
 
 void alya_webview_set_data_dir(const char *path) {
@@ -683,18 +685,43 @@ void alya_webview_set_data_dir(const char *path) {
 void alya_webview_set_extra_args(const char *args) {
     // Honored by the WebView2 loader as additional Chromium switches.
     // Must precede environment creation, i.e. set before open().
+    // Example: "--remote-debugging-port=9222 --disable-gpu".
     wchar_t *w;
     if (args == NULL || args[0] == '\0') {
+        wv_g_extra_args[0] = '\0';
         SetEnvironmentVariableW(L"WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
                                 NULL);
         return;
     }
+    strncpy(wv_g_extra_args, args, sizeof(wv_g_extra_args) - 1);
+    wv_g_extra_args[sizeof(wv_g_extra_args) - 1] = '\0';
     w = wv_utf8_to_wide(args);
     if (w == NULL) {
         return;
     }
     SetEnvironmentVariableW(L"WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", w);
     free(w);
+}
+
+const char *alya_webview_get_data_dir(void) {
+    static char narrow[MAX_PATH * 2];
+    if (!wv_g_data_dir_set) {
+        return "";
+    }
+    WideCharToMultiByte(CP_UTF8, 0, wv_g_data_dir, -1, narrow,
+                        (int)sizeof(narrow), NULL, NULL);
+    return narrow;
+}
+
+const char *alya_webview_get_extra_args(void) {
+    return wv_g_extra_args;
+}
+
+const char *alya_webview_profile_path(alya_webview_t *w) {
+    if (w == NULL) {
+        return "";
+    }
+    return w->profile;
 }
 
 static alya_webview_t *wv_create_inner(const char *title, int width,
@@ -921,6 +948,12 @@ static alya_webview_t *wv_create_inner(const char *title, int width,
         data_dir[(sizeof(data_dir) / sizeof(data_dir[0])) - 1] = L'\0';
         CreateDirectoryW(data_dir, NULL);
         wdata = data_dir;
+    }
+
+    // Remember the backing folder for profile_path().
+    w->profile[0] = '\0';
+    if (wdata != NULL) {
+        wv_wide_to_utf8_into(w->profile, sizeof(w->profile), wdata);
     }
 
     eh = wv_make_cb(w, wv_slots_env);

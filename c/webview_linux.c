@@ -17,6 +17,7 @@
 #include "webview.h"
 
 #include <dlfcn.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -58,6 +59,7 @@ typedef void *gpointer;
 struct alya_webview {
     GtkWidget *win;
     GtkWidget *view;
+    char profile[1024]; // backing data dir ("" when default/ephemeral)
     int open;
     int ready;
     int api;
@@ -559,6 +561,7 @@ const char *alya_webview_engine_version(void) {
 
 /* Launch configuration (process-wide, consumed by create below). */
 static char wv_g_data_dir[1024];
+static char wv_g_extra_args[2048];
 
 void alya_webview_set_data_dir(const char *path) {
     if (path == NULL || path[0] == '\0') {
@@ -569,10 +572,30 @@ void alya_webview_set_data_dir(const char *path) {
     wv_g_data_dir[sizeof(wv_g_data_dir) - 1] = '\0';
 }
 
+const char *alya_webview_get_data_dir(void) {
+    return wv_g_data_dir;
+}
+
 void alya_webview_set_extra_args(const char *args) {
-    // No generic switch channel for WebKitGTK contexts in v1;
-    // WEBKIT_* tuning stays in the user's shell environment.
-    (void)args;
+    // Recorded for get_extra_args() uniformity; WebKitGTK tuning stays
+    // in WEBKIT_* environment variables (user's shell).
+    if (args == NULL || args[0] == '\0') {
+        wv_g_extra_args[0] = '\0';
+        return;
+    }
+    strncpy(wv_g_extra_args, args, sizeof(wv_g_extra_args) - 1);
+    wv_g_extra_args[sizeof(wv_g_extra_args) - 1] = '\0';
+}
+
+const char *alya_webview_get_extra_args(void) {
+    return wv_g_extra_args;
+}
+
+const char *alya_webview_profile_path(alya_webview_t *w) {
+    if (w == NULL) {
+        return "";
+    }
+    return w->profile;
 }
 
 static GtkWidget *wv_new_view(int priv) {
@@ -698,6 +721,11 @@ static alya_webview_t *wv_create_inner(const char *title, int width,
         p_gtk_widget_destroy(w->win);
         free(w);
         return NULL;
+    }
+    // Remember the backing folder for profile_path().
+    w->profile[0] = '\0';
+    if (!priv && wv_g_data_dir[0] != '\0') {
+        snprintf(w->profile, sizeof(w->profile), "%s/data", wv_g_data_dir);
     }
     p_gtk_container_add(w->win, w->view);
 

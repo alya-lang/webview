@@ -53,6 +53,21 @@ pub function open(title: string = "Alya", width: int = 800, height: int = 600)
     return native_browser_open(title, width, height)
 end
 
+## Returns the configured profile folder (`""` when default).
+pub function data_dir() -> string
+    return native_browser_data_dir()
+end
+
+## Returns the configured extra switches (`""` when none).
+pub function extra_args() -> string
+    return native_browser_extra_args()
+end
+
+## Returns the actual folder backing an open window (`""` when none).
+pub function profile_path(win) -> string
+    return native_browser_profile_path(win)
+end
+
 ## Opens a private (incognito) window; no persistent profile is kept.
 pub function open_private(title: string = "Alya", width: int = 800, height: int = 600)
     return native_browser_open_private(title, width, height)

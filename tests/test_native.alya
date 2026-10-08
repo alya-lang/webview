@@ -142,6 +142,13 @@ function main()
     runner_assert_true(r, gl == 0 or gl == 1, "set_webgl in 0..1")
     let cs = pkg::set_charset(w, "UTF-8")
     runner_assert_true(r, cs == 0 or cs == 1, "set_charset in 0..1")
+    # Profile path: Windows always backs windows with a folder;
+    # macOS default/ephemeral stores have none.
+    if pkg::backend() == "windows"
+        runner_assert_true(r, len(pkg::profile_path(w)) > 0, "profile path set on windows")
+    else
+        runner_assert_true(r, pkg::profile_path(w) == "" or len(pkg::profile_path(w)) > 0, "profile path is a string")
+    end
 
     # 7. Graceful close -> CLOSE event -> not open
     runner_assert_eq(r, pkg::request_close(w), true, "close requested")

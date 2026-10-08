@@ -66,6 +66,15 @@ alya_webview_t *alya_webview_create_private(const char *title, int width,
  * switches (Windows WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS only). */
 void alya_webview_set_data_dir(const char *path);
 void alya_webview_set_extra_args(const char *args);
+
+/* Configured values (what was set, not what the engine applied).
+ * data_dir/extra_args return "" when never set. profile_path returns
+ * the actual folder backing an open window ("" for default stores
+ * without a filesystem path, e.g. macOS default store or any
+ * ephemeral/private window on macOS/Linux). Never NULL. */
+const char *alya_webview_get_data_dir(void);
+const char *alya_webview_get_extra_args(void);
+const char *alya_webview_profile_path(alya_webview_t *w);
 void alya_webview_destroy(alya_webview_t *w);
 void alya_webview_show(alya_webview_t *w);
 void alya_webview_hide(alya_webview_t *w);

@@ -449,15 +449,42 @@ int alya_webview_open_external(const char *url) {
     return ok ? 1 : 0;
 }
 
-alya_webview_t *void alya_webview_set_data_dir(const char *path) {
-    // WKWebsiteDataStore exposes no custom-path API; the default store
-    // is used. Private windows use a non-persistent store instead.
-    (void)path;
+/* Launch configuration record (macOS applies neither: WKWebView has
+ * no custom-path or switch channel; private windows use a
+ * non-persistent store). Getters report what was configured. */
+static char wv_g_data_dir[1024];
+static char wv_g_extra_args[2048];
+
+void alya_webview_set_data_dir(const char *path) {
+    if (path == NULL || path[0] == '\0') {
+        wv_g_data_dir[0] = '\0';
+        return;
+    }
+    strncpy(wv_g_data_dir, path, sizeof(wv_g_data_dir) - 1);
+    wv_g_data_dir[sizeof(wv_g_data_dir) - 1] = '\0';
+}
+
+const char *alya_webview_get_data_dir(void) {
+    return wv_g_data_dir;
 }
 
 void alya_webview_set_extra_args(const char *args) {
-    // No Chromium-switch channel exists for WKWebView; ignored.
-    (void)args;
+    if (args == NULL || args[0] == '\0') {
+        wv_g_extra_args[0] = '\0';
+        return;
+    }
+    strncpy(wv_g_extra_args, args, sizeof(wv_g_extra_args) - 1);
+    wv_g_extra_args[sizeof(wv_g_extra_args) - 1] = '\0';
+}
+
+const char *alya_webview_get_extra_args(void) {
+    return wv_g_extra_args;
+}
+
+const char *alya_webview_profile_path(alya_webview_t *w) {
+    // Default store and private windows have no filesystem path.
+    (void)w;
+    return "";
 }
 
 static alya_webview_t *wv_create_inner(const char *title, int width,
