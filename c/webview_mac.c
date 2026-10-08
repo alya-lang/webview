@@ -51,6 +51,28 @@ static double wv_msg_send_double(id target, SEL op) {
 #endif
 }
 
+// Typed dispatch macros:
+// On ARM64 (Apple Silicon), the calling convention for variadic functions differs
+// from non-variadic functions: variadic arguments are placed on the stack instead of
+// in registers x2-x7. Objective-C methods are non-variadic functions expecting arguments
+// in registers. Calling objc_msgSend without casting to a matching non-variadic function
+// pointer passes parameters on the stack, causing target methods to read garbage registers
+// and crash with SIGSEGV. We cast objc_msgSend to the exact prototype for every dispatch.
+#define wv_send0(ret, target, sel) \
+    (((ret (*)(id, SEL))objc_msgSend)((id)(target), (sel)))
+#define wv_send1(ret, target, sel, a1) \
+    (((ret (*)(id, SEL, __typeof__(a1)))objc_msgSend)((id)(target), (sel), (a1)))
+#define wv_send2(ret, target, sel, a1, a2) \
+    (((ret (*)(id, SEL, __typeof__(a1), __typeof__(a2)))objc_msgSend)((id)(target), (sel), (a1), (a2)))
+#define wv_send3(ret, target, sel, a1, a2, a3) \
+    (((ret (*)(id, SEL, __typeof__(a1), __typeof__(a2), __typeof__(a3)))objc_msgSend)((id)(target), (sel), (a1), (a2), (a3)))
+#define wv_send4(ret, target, sel, a1, a2, a3, a4) \
+    (((ret (*)(id, SEL, __typeof__(a1), __typeof__(a2), __typeof__(a3), __typeof__(a4)))objc_msgSend)((id)(target), (sel), (a1), (a2), (a3), (a4)))
+#define wv_send9(ret, target, sel, a1, a2, a3, a4, a5, a6, a7, a8, a9) \
+    (((ret (*)(id, SEL, __typeof__(a1), __typeof__(a2), __typeof__(a3), __typeof__(a4), __typeof__(a5), __typeof__(a6), __typeof__(a7), __typeof__(a8), __typeof__(a9)))objc_msgSend)((id)(target), (sel), (a1), (a2), (a3), (a4), (a5), (a6), (a7), (a8), (a9)))
+#define wv_send10(ret, target, sel, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) \
+    (((ret (*)(id, SEL, __typeof__(a1), __typeof__(a2), __typeof__(a3), __typeof__(a4), __typeof__(a5), __typeof__(a6), __typeof__(a7), __typeof__(a8), __typeof__(a9), __typeof__(a10)))objc_msgSend)((id)(target), (sel), (a1), (a2), (a3), (a4), (a5), (a6), (a7), (a8), (a9), (a10)))
+
 typedef struct NSRect {
     double x;
     double y;
@@ -146,28 +168,28 @@ static id wv_nsstr(const char *s) {
     if (s == NULL) {
         s = "";
     }
-    return objc_msgSend((id)objc_getClass("NSString"),
-                        wv_sel("stringWithUTF8String:"), s);
+    return wv_send1(id, (id)objc_getClass("NSString"),
+                    wv_sel("stringWithUTF8String:"), s);
 }
 
 static const char *wv_cstr(id nsstr) {
     if (nsstr == NULL) {
         return "";
     }
-    return (const char *)objc_msgSend(nsstr, wv_sel("UTF8String"));
+    return wv_send0(const char *, nsstr, wv_sel("UTF8String"));
 }
 
 /* --- autorelease pool helpers (no ObjC syntax available) --- */
 
 static id wv_pool_push(void) {
-    id pool = objc_msgSend((id)objc_getClass("NSAutoreleasePool"),
-                           wv_sel("alloc"));
-    return objc_msgSend(pool, wv_sel("init"));
+    id pool = wv_send0(id, (id)objc_getClass("NSAutoreleasePool"),
+                       wv_sel("alloc"));
+    return wv_send0(id, pool, wv_sel("init"));
 }
 
 static void wv_pool_pop(id pool) {
     if (pool != NULL) {
-        objc_msgSend(pool, wv_sel("drain"));
+        wv_send0(void, pool, wv_sel("drain"));
     }
 }
 
@@ -217,11 +239,11 @@ static void wv_sync_url(alya_webview_t *w) {
         return;
     }
     view = w->view;
-    url = objc_msgSend(view, wv_sel("URL"));
+    url = wv_send0(id, view, wv_sel("URL"));
     if (url == NULL) {
         return;
     }
-    abs = objc_msgSend(url, wv_sel("absoluteString"));
+    abs = wv_send0(id, url, wv_sel("absoluteString"));
     wv_copy(w->url, sizeof(w->url), wv_cstr(abs));
 }
 
@@ -230,7 +252,7 @@ static void wv_sync_title(alya_webview_t *w) {
     if (w == NULL || w->view == NULL) {
         return;
     }
-    t = objc_msgSend(w->view, wv_sel("title"));
+    t = wv_send0(id, w->view, wv_sel("title"));
     wv_copy(w->title, sizeof(w->title), wv_cstr(t));
 }
 
@@ -283,11 +305,11 @@ static void wv_did_message(id self, SEL cmd, id controller, id message) {
     if (w == NULL || message == NULL) {
         return;
     }
-    body = objc_msgSend(message, wv_sel("body"));
+    body = wv_send0(id, message, wv_sel("body"));
     if (body == NULL) {
         return;
     }
-    desc = objc_msgSend(body, wv_sel("description"));
+    desc = wv_send0(id, body, wv_sel("description"));
     wv_copy(w->message, sizeof(w->message), wv_cstr(desc));
     wv_push(w, ALYA_WEBVIEW_EVENT_MESSAGE);
 }
@@ -369,7 +391,7 @@ static void wv_js_invoke(void *blk, id result, id error) {
     alya_webview_t *w = b->w;
     if (w != NULL) {
         if (error == NULL && result != NULL) {
-            id desc = objc_msgSend(result, wv_sel("description"));
+            id desc = wv_send0(id, result, wv_sel("description"));
             wv_copy(w->eval_result, sizeof(w->eval_result),
                     wv_cstr(desc));
             w->eval_state = ALYA_WEBVIEW_EVAL_READY;
@@ -405,8 +427,8 @@ static int wv_fire_js(alya_webview_t *w, const char *js) {
     w->eval_state = ALYA_WEBVIEW_EVAL_PENDING;
     w->eval_result[0] = '\0';
     w->eval_pending = 1;
-    objc_msgSend(w->view, wv_sel("evaluateJavaScript:completionHandler:"),
-                 code, (id)b);
+    wv_send2(void, w->view, wv_sel("evaluateJavaScript:completionHandler:"),
+             code, (id)b);
     return 1;
 }
 
@@ -507,10 +529,10 @@ static const char *wv_mime_for(const char *path) {
 
 static void wv_scheme_fail(id task) {
     id pool = wv_pool_push();
-    id err = objc_msgSend((id)objc_getClass("NSError"),
-                          wv_sel("errorWithDomain:code:userInfo:"),
-                          wv_nsstr("alya"), (long)404, NULL);
-    objc_msgSend(task, wv_sel("didFailWithError:"), err);
+    id err = wv_send3(id, (id)objc_getClass("NSError"),
+                      wv_sel("errorWithDomain:code:userInfo:"),
+                      wv_nsstr("alya"), (long)404, NULL);
+    wv_send1(void, task, wv_sel("didFailWithError:"), err);
     wv_pool_pop(pool);
 }
 
@@ -535,12 +557,12 @@ static void wv_scheme_start(id self, SEL cmd, id webview, id task) {
         return;
     }
     pool = wv_pool_push();
-    req = objc_msgSend(task, wv_sel("request"));
+    req = wv_send0(id, task, wv_sel("request"));
     url = req != NULL
-              ? objc_msgSend(req, wv_sel("URL"))
+              ? wv_send0(id, req, wv_sel("URL"))
               : NULL;
     abs = url != NULL
-              ? wv_cstr(objc_msgSend(url, wv_sel("absoluteString")))
+              ? wv_cstr(wv_send0(id, url, wv_sel("absoluteString")))
               : "";
     // Expect alya://host/path
     p = strstr(abs, "://");
@@ -610,24 +632,24 @@ static void wv_scheme_start(id self, SEL cmd, id webview, id task) {
     }
     fclose(f);
     {
-        id dataObj = objc_msgSend((id)objc_getClass("NSData"),
-                                  wv_sel("dataWithBytes:length:"), data,
-                                  (unsigned long)(size > 0 ? size : 0));
-        id headers = objc_msgSend((id)objc_getClass("NSMutableDictionary"),
-                                  wv_sel("dictionary"));
+        id dataObj = wv_send2(id, (id)objc_getClass("NSData"),
+                              wv_sel("dataWithBytes:length:"), data,
+                              (unsigned long)(size > 0 ? size : 0));
+        id headers = wv_send0(id, (id)objc_getClass("NSMutableDictionary"),
+                              wv_sel("dictionary"));
         id resp;
         free(data);
-        objc_msgSend(headers, wv_sel("setObject:forKey:"),
-                     wv_nsstr(wv_mime_for(full)), wv_nsstr("Content-Type"));
-        resp = objc_msgSend((id)objc_getClass("NSHTTPURLResponse"),
-                            wv_sel("alloc"));
-        resp = objc_msgSend(resp,
-                            wv_sel("initWithURL:statusCode:HTTPVersion:headerFields:"),
-                            url, (long)200, wv_nsstr("HTTP/1.1"), headers);
-        objc_msgSend(task, wv_sel("didReceiveResponse:"), resp);
-        objc_msgSend(task, wv_sel("didReceiveData:"), dataObj);
-        objc_msgSend(task, wv_sel("didFinish"));
-        objc_msgSend(resp, wv_sel("release"));
+        wv_send2(void, headers, wv_sel("setObject:forKey:"),
+                 wv_nsstr(wv_mime_for(full)), wv_nsstr("Content-Type"));
+        resp = wv_send0(id, (id)objc_getClass("NSHTTPURLResponse"),
+                        wv_sel("alloc"));
+        resp = wv_send4(id, resp,
+                        wv_sel("initWithURL:statusCode:HTTPVersion:headerFields:"),
+                        url, (long)200, wv_nsstr("HTTP/1.1"), headers);
+        wv_send1(void, task, wv_sel("didReceiveResponse:"), resp);
+        wv_send1(void, task, wv_sel("didReceiveData:"), dataObj);
+        wv_send0(void, task, wv_sel("didFinish"));
+        wv_send0(void, resp, wv_sel("release"));
     }
     wv_pool_pop(pool);
 }
@@ -685,17 +707,17 @@ const char *alya_webview_engine_version(void) {
         return "";
     }
     pool = wv_pool_push();
-    bundle = objc_msgSend((id)cls,
-                          wv_sel("bundleWithIdentifier:"),
-                          wv_nsstr("com.apple.WebKit"));
+    bundle = wv_send1(id, (id)cls,
+                      wv_sel("bundleWithIdentifier:"),
+                      wv_nsstr("com.apple.WebKit"));
     if (bundle != NULL) {
-        ver = objc_msgSend(bundle,
-                           wv_sel("objectForInfoDictionaryKey:"),
-                           wv_nsstr("CFBundleShortVersionString"));
+        ver = wv_send1(id, bundle,
+                       wv_sel("objectForInfoDictionaryKey:"),
+                       wv_nsstr("CFBundleShortVersionString"));
         if (ver == NULL) {
-            ver = objc_msgSend(bundle,
-                               wv_sel("objectForInfoDictionaryKey:"),
-                               wv_nsstr("CFBundleVersion"));
+            ver = wv_send1(id, bundle,
+                           wv_sel("objectForInfoDictionaryKey:"),
+                           wv_nsstr("CFBundleVersion"));
         }
         if (ver != NULL) {
             const char *cs = wv_cstr(ver);
@@ -722,13 +744,13 @@ int alya_webview_open_external(const char *url) {
         return 0;
     }
     pool = wv_pool_push();
-    ws = objc_msgSend((id)objc_getClass("NSWorkspace"),
-                      wv_sel("sharedWorkspace"));
+    ws = wv_send0(id, (id)objc_getClass("NSWorkspace"),
+                  wv_sel("sharedWorkspace"));
     if (ws != NULL) {
-        nsurl = objc_msgSend((id)objc_getClass("NSURL"),
-                             wv_sel("URLWithString:"), wv_nsstr(url));
+        nsurl = wv_send1(id, (id)objc_getClass("NSURL"),
+                         wv_sel("URLWithString:"), wv_nsstr(url));
         if (nsurl != NULL) {
-            ok = (long)objc_msgSend(ws, wv_sel("openURL:"), nsurl);
+            ok = wv_send1(BOOL, ws, wv_sel("openURL:"), nsurl);
         }
     }
     wv_pool_pop(pool);
@@ -825,64 +847,63 @@ static alya_webview_t *wv_create_inner(const char *title, int width,
     wv_copy(w->title, sizeof(w->title), title);
 
     pool = wv_pool_push();
-    app = objc_msgSend((id)objc_getClass("NSApplication"),
-                       wv_sel("sharedApplication"));
+    app = wv_send0(id, (id)objc_getClass("NSApplication"),
+                   wv_sel("sharedApplication"));
     if (app == NULL) {
         wv_pool_pop(pool);
         free(w);
         return NULL;
     }
-    objc_msgSend(app, wv_sel("setActivationPolicy:"), (long)0);
-    objc_msgSend(app, wv_sel("finishLaunching"));
+    wv_send1(void, app, wv_sel("setActivationPolicy:"), (long)0);
+    wv_send0(void, app, wv_sel("finishLaunching"));
 
     rect.x = 100;
     rect.y = 100;
     rect.w = (double)width;
     rect.h = (double)height;
-    win = objc_msgSend((id)objc_getClass("NSWindow"), wv_sel("alloc"));
-    win = objc_msgSend(win, wv_sel("initWithContentRect:styleMask:backing:defer:"),
-                       rect, (unsigned long)15, (unsigned long)2, (BOOL)0);
+    win = wv_send0(id, (id)objc_getClass("NSWindow"), wv_sel("alloc"));
+    win = wv_send4(id, win, wv_sel("initWithContentRect:styleMask:backing:defer:"),
+                   rect, (unsigned long)15, (unsigned long)2, (BOOL)0);
     if (win == NULL) {
         wv_pool_pop(pool);
         free(w);
         return NULL;
     }
-    objc_msgSend(win, wv_sel("setTitle:"), wv_nsstr(title));
-    objc_msgSend(win, wv_sel("setReleasedWhenClosed:"), (BOOL)0);
-    w->orig_mask =
-        (unsigned long)objc_msgSend(win, wv_sel("styleMask"));
+    wv_send1(void, win, wv_sel("setTitle:"), wv_nsstr(title));
+    wv_send1(void, win, wv_sel("setReleasedWhenClosed:"), (BOOL)0);
+    w->orig_mask = wv_send0(unsigned long, win, wv_sel("styleMask"));
 
-    config = objc_msgSend((id)objc_getClass("WKWebViewConfiguration"),
-                          wv_sel("alloc"));
-    config = objc_msgSend(config, wv_sel("init"));
+    config = wv_send0(id, (id)objc_getClass("WKWebViewConfiguration"),
+                      wv_sel("alloc"));
+    config = wv_send0(id, config, wv_sel("init"));
     if (priv) {
-        id store = objc_msgSend((id)objc_getClass("WKWebsiteDataStore"),
-                                wv_sel("nonPersistentDataStore"));
+        id store = wv_send0(id, (id)objc_getClass("WKWebsiteDataStore"),
+                            wv_sel("nonPersistentDataStore"));
         if (store != NULL) {
-            objc_msgSend(config, wv_sel("setWebsiteDataStore:"), store);
+            wv_send1(void, config, wv_sel("setWebsiteDataStore:"), store);
         }
     }
     // App-scheme handler (consulting the serve_folder table per request).
     {
-        id sh = objc_msgSend((id)wv_scheme_class(), wv_sel("alloc"));
-        sh = objc_msgSend(sh, wv_sel("init"));
+        id sh = wv_send0(id, (id)wv_scheme_class(), wv_sel("alloc"));
+        sh = wv_send0(id, sh, wv_sel("init"));
         if (sh != NULL) {
-            objc_msgSend(config, wv_sel("setURLSchemeHandler:forURLScheme:"),
-                         sh, wv_nsstr("alya"));
-            objc_msgSend(sh, wv_sel("release"));
+            wv_send2(void, config, wv_sel("setURLSchemeHandler:forURLScheme:"),
+                     sh, wv_nsstr("alya"));
+            wv_send0(void, sh, wv_sel("release"));
         }
     }
-    ucc = objc_msgSend(config, wv_sel("userContentController"));
+    ucc = wv_send0(id, config, wv_sel("userContentController"));
 
-    del = objc_msgSend((id)wv_delegate_class(), wv_sel("alloc"));
-    del = objc_msgSend(del, wv_sel("init"));
+    del = wv_send0(id, (id)wv_delegate_class(), wv_sel("alloc"));
+    del = wv_send0(id, del, wv_sel("init"));
     iv = class_getInstanceVariable(wv_delegate_class(), "wvCtx");
     object_setIvar(del, iv, (id)(void *)w);
 
-    objc_msgSend(ucc, wv_sel("addScriptMessageHandler:name:"), del,
-                 wv_nsstr("alya"));
+    wv_send2(void, ucc, wv_sel("addScriptMessageHandler:name:"), del,
+             wv_nsstr("alya"));
 
-    content = objc_msgSend(win, wv_sel("contentView"));
+    content = wv_send0(id, win, wv_sel("contentView"));
     {
         // Start at the requested size (kept in sync on resize).
         NSRect fr;
@@ -890,25 +911,25 @@ static alya_webview_t *wv_create_inner(const char *title, int width,
         fr.y = 0;
         fr.w = (double)width;
         fr.h = (double)height;
-        view = objc_msgSend((id)objc_getClass("WKWebView"), wv_sel("alloc"));
-        view = objc_msgSend(view, wv_sel("initWithFrame:configuration:"),
-                            fr, config);
+        view = wv_send0(id, (id)objc_getClass("WKWebView"), wv_sel("alloc"));
+        view = wv_send2(id, view, wv_sel("initWithFrame:configuration:"),
+                        fr, config);
     }
     if (view == NULL) {
-        objc_msgSend(del, wv_sel("release"));
-        objc_msgSend(config, wv_sel("release"));
-        objc_msgSend(win, wv_sel("release"));
+        wv_send0(void, del, wv_sel("release"));
+        wv_send0(void, config, wv_sel("release"));
+        wv_send0(void, win, wv_sel("release"));
         wv_pool_pop(pool);
         free(w);
         return NULL;
     }
-    objc_msgSend(view, wv_sel("setNavigationDelegate:"), del);
-    objc_msgSend(view, wv_sel("setAutoresizingMask:"),
-                 (unsigned long)(2 | 16));
-    objc_msgSend(content, wv_sel("addSubview:"), view);
-    objc_msgSend(view, wv_sel("addObserver:forKeyPath:options:context:"),
-                 del, wv_nsstr("title"), (unsigned long)0, NULL);
-    objc_msgSend(win, wv_sel("setDelegate:"), del);
+    wv_send1(void, view, wv_sel("setNavigationDelegate:"), del);
+    wv_send1(void, view, wv_sel("setAutoresizingMask:"),
+             (unsigned long)(2 | 16));
+    wv_send1(void, content, wv_sel("addSubview:"), view);
+    wv_send4(void, view, wv_sel("addObserver:forKeyPath:options:context:"),
+             del, wv_nsstr("title"), (unsigned long)0, NULL);
+    wv_send1(void, win, wv_sel("setDelegate:"), del);
 
     w->win = win;
     w->view = view;
@@ -925,22 +946,22 @@ void alya_webview_destroy(alya_webview_t *w) {
     }
     pool = wv_pool_push();
     if (w->view != NULL) {
-        objc_msgSend(w->view,
-                     wv_sel("removeObserver:forKeyPath:"), w->delegate,
-                     wv_nsstr("title"));
-        objc_msgSend(w->view, wv_sel("setNavigationDelegate:"), NULL);
-        objc_msgSend(w->view, wv_sel("removeFromSuperview"));
-        objc_msgSend(w->view, wv_sel("release"));
+        wv_send2(void, w->view,
+                 wv_sel("removeObserver:forKeyPath:"), w->delegate,
+                 wv_nsstr("title"));
+        wv_send1(void, w->view, wv_sel("setNavigationDelegate:"), NULL);
+        wv_send0(void, w->view, wv_sel("removeFromSuperview"));
+        wv_send0(void, w->view, wv_sel("release"));
         w->view = NULL;
     }
     if (w->win != NULL) {
-        objc_msgSend(w->win, wv_sel("setDelegate:"), NULL);
-        objc_msgSend(w->win, wv_sel("close"));
-        objc_msgSend(w->win, wv_sel("release"));
+        wv_send1(void, w->win, wv_sel("setDelegate:"), NULL);
+        wv_send0(void, w->win, wv_sel("close"));
+        wv_send0(void, w->win, wv_sel("release"));
         w->win = NULL;
     }
     if (w->delegate != NULL) {
-        objc_msgSend(w->delegate, wv_sel("release"));
+        wv_send0(void, w->delegate, wv_sel("release"));
         w->delegate = NULL;
     }
     w->ready = 0;
@@ -955,11 +976,11 @@ void alya_webview_show(alya_webview_t *w) {
         return;
     }
     pool = wv_pool_push();
-    objc_msgSend(w->win, wv_sel("makeKeyAndOrderFront:"), NULL);
+    wv_send1(void, w->win, wv_sel("makeKeyAndOrderFront:"), NULL);
     {
-        id app = objc_msgSend((id)objc_getClass("NSApplication"),
-                              wv_sel("sharedApplication"));
-        objc_msgSend(app, wv_sel("activateIgnoringOtherApps:"), (BOOL)1);
+        id app = wv_send0(id, (id)objc_getClass("NSApplication"),
+                          wv_sel("sharedApplication"));
+        wv_send1(void, app, wv_sel("activateIgnoringOtherApps:"), (BOOL)1);
     }
     wv_pool_pop(pool);
 }
@@ -970,7 +991,7 @@ void alya_webview_hide(alya_webview_t *w) {
         return;
     }
     pool = wv_pool_push();
-    objc_msgSend(w->win, wv_sel("orderOut:"), NULL);
+    wv_send1(void, w->win, wv_sel("orderOut:"), NULL);
     wv_pool_pop(pool);
 }
 
@@ -997,7 +1018,7 @@ void alya_webview_request_close(alya_webview_t *w) {
     wv_push(w, ALYA_WEBVIEW_EVENT_CLOSE);
     if (w->win != NULL) {
         pool = wv_pool_push();
-        objc_msgSend(w->win, wv_sel("close"));
+        wv_send0(void, w->win, wv_sel("close"));
         wv_pool_pop(pool);
     }
 }
@@ -1012,7 +1033,7 @@ void alya_webview_set_title(alya_webview_t *w, const char *title) {
     }
     wv_copy(w->title, sizeof(w->title), title);
     pool = wv_pool_push();
-    objc_msgSend(w->win, wv_sel("setTitle:"), wv_nsstr(title));
+    wv_send1(void, w->win, wv_sel("setTitle:"), wv_nsstr(title));
     wv_pool_pop(pool);
 }
 
@@ -1030,7 +1051,7 @@ void alya_webview_set_size(alya_webview_t *w, int width, int height) {
     size.w = (double)width;
     size.h = (double)height;
     pool = wv_pool_push();
-    objc_msgSend(w->win, wv_sel("setContentSize:"), size);
+    wv_send1(void, w->win, wv_sel("setContentSize:"), size);
     wv_pool_pop(pool);
     wv_push(w, ALYA_WEBVIEW_EVENT_RESIZE);
 }
@@ -1046,15 +1067,15 @@ static int wv_load_request(alya_webview_t *w, const char *url) {
         return 0;
     }
     pool = wv_pool_push();
-    nsurl = objc_msgSend((id)objc_getClass("NSURL"),
-                         wv_sel("URLWithString:"), wv_nsstr(url));
+    nsurl = wv_send1(id, (id)objc_getClass("NSURL"),
+                     wv_sel("URLWithString:"), wv_nsstr(url));
     if (nsurl == NULL) {
         wv_pool_pop(pool);
         return 0;
     }
-    req = objc_msgSend((id)objc_getClass("NSURLRequest"),
-                       wv_sel("requestWithURL:"), nsurl);
-    objc_msgSend(w->view, wv_sel("loadRequest:"), req);
+    req = wv_send1(id, (id)objc_getClass("NSURLRequest"),
+                   wv_sel("requestWithURL:"), nsurl);
+    wv_send1(void, w->view, wv_sel("loadRequest:"), req);
     wv_pool_pop(pool);
     return 1;
 }
@@ -1082,8 +1103,8 @@ int alya_webview_load_html(alya_webview_t *w, const char *html) {
     wv_copy(w->url, sizeof(w->url), "about:blank");
     wv_push(w, ALYA_WEBVIEW_EVENT_NAV_START);
     pool = wv_pool_push();
-    objc_msgSend(w->view, wv_sel("loadHTMLString:baseURL:"), wv_nsstr(html),
-                 NULL);
+    wv_send2(void, w->view, wv_sel("loadHTMLString:baseURL:"), wv_nsstr(html),
+             NULL);
     wv_pool_pop(pool);
     return 1;
 }
@@ -1094,7 +1115,7 @@ int alya_webview_reload(alya_webview_t *w) {
         return 0;
     }
     pool = wv_pool_push();
-    objc_msgSend(w->view, wv_sel("reload"));
+    wv_send0(void, w->view, wv_sel("reload"));
     wv_pool_pop(pool);
     return 1;
 }
@@ -1105,7 +1126,7 @@ int alya_webview_go_back(alya_webview_t *w) {
         return 0;
     }
     pool = wv_pool_push();
-    objc_msgSend(w->view, wv_sel("goBack"));
+    wv_send0(void, w->view, wv_sel("goBack"));
     wv_pool_pop(pool);
     return 1;
 }
@@ -1116,31 +1137,31 @@ int alya_webview_go_forward(alya_webview_t *w) {
         return 0;
     }
     pool = wv_pool_push();
-    objc_msgSend(w->view, wv_sel("goForward"));
+    wv_send0(void, w->view, wv_sel("goForward"));
     wv_pool_pop(pool);
     return 1;
 }
 
 int alya_webview_can_back(alya_webview_t *w) {
     id pool;
-    long v = 0;
+    BOOL v = 0;
     if (w == NULL || w->view == NULL) {
         return 0;
     }
     pool = wv_pool_push();
-    v = (long)objc_msgSend(w->view, wv_sel("canGoBack"));
+    v = wv_send0(BOOL, w->view, wv_sel("canGoBack"));
     wv_pool_pop(pool);
     return v ? 1 : 0;
 }
 
 int alya_webview_can_forward(alya_webview_t *w) {
     id pool;
-    long v = 0;
+    BOOL v = 0;
     if (w == NULL || w->view == NULL) {
         return 0;
     }
     pool = wv_pool_push();
-    v = (long)objc_msgSend(w->view, wv_sel("canGoForward"));
+    v = wv_send0(BOOL, w->view, wv_sel("canGoForward"));
     wv_pool_pop(pool);
     return v ? 1 : 0;
 }
@@ -1189,9 +1210,9 @@ int alya_webview_post_message(alya_webview_t *w, const char *json) {
     {
         id pool = wv_pool_push();
         // Fire-and-forget: no completion block needed for delivery.
-        objc_msgSend(w->view,
-                     wv_sel("evaluateJavaScript:completionHandler:"),
-                     wv_nsstr(buf), NULL);
+        wv_send2(void, w->view,
+                 wv_sel("evaluateJavaScript:completionHandler:"),
+                 wv_nsstr(buf), NULL);
         wv_pool_pop(pool);
     }
     return 1;
@@ -1201,14 +1222,28 @@ int alya_webview_set_devtools(alya_webview_t *w, int enabled) {
     id pool;
     id config;
     id prefs;
+    SEL sel_ins;
+    SEL sel_dev;
     if (w == NULL || w->view == NULL) {
         return 0;
     }
     pool = wv_pool_push();
-    config = objc_msgSend(w->view, wv_sel("configuration"));
-    prefs = objc_msgSend(config, wv_sel("preferences"));
-    objc_msgSend(prefs, wv_sel("setDeveloperExtrasEnabled:"),
-                 (BOOL)(enabled ? 1 : 0));
+    // Modern WebKit (macOS 13.3+): WKWebView.isInspectable
+    sel_ins = wv_sel("setInspectable:");
+    if (wv_send1(BOOL, w->view, wv_sel("respondsToSelector:"), sel_ins)) {
+        wv_send1(void, w->view, sel_ins, (BOOL)(enabled ? 1 : 0));
+    }
+    // Older WebKit: WKPreferences._setDeveloperExtrasEnabled:
+    config = wv_send0(id, w->view, wv_sel("configuration"));
+    if (config != NULL) {
+        prefs = wv_send0(id, config, wv_sel("preferences"));
+        if (prefs != NULL) {
+            sel_dev = wv_sel("_setDeveloperExtrasEnabled:");
+            if (wv_send1(BOOL, prefs, wv_sel("respondsToSelector:"), sel_dev)) {
+                wv_send1(void, prefs, sel_dev, (BOOL)(enabled ? 1 : 0));
+            }
+        }
+    }
     wv_pool_pop(pool);
     return 1;
 }
@@ -1221,12 +1256,27 @@ int alya_webview_set_js(alya_webview_t *w, int enabled) {
         return 0;
     }
     pool = wv_pool_push();
-    config = objc_msgSend(w->view, wv_sel("configuration"));
-    prefs = objc_msgSend(config, wv_sel("preferences"));
-    // javaScriptEnabled is get-only on modern WebKit; the set may no-op
-    // on newer systems but is harmless to attempt.
-    objc_msgSend(prefs, wv_sel("setJavaScriptEnabled:"),
-                 (BOOL)(enabled ? 1 : 0));
+    config = wv_send0(id, w->view, wv_sel("configuration"));
+    if (config != NULL) {
+        prefs = wv_send0(id, config, wv_sel("preferences"));
+        if (prefs != NULL) {
+            SEL sel_js = wv_sel("setJavaScriptEnabled:");
+            if (wv_send1(BOOL, prefs, wv_sel("respondsToSelector:"), sel_js)) {
+                wv_send1(void, prefs, sel_js, (BOOL)(enabled ? 1 : 0));
+            }
+        }
+        // macOS 11.0+: defaultWebpagePreferences.allowsContentJavaScript
+        SEL sel_wp = wv_sel("defaultWebpagePreferences");
+        if (wv_send1(BOOL, config, wv_sel("respondsToSelector:"), sel_wp)) {
+            id wp = wv_send0(id, config, sel_wp);
+            if (wp != NULL) {
+                SEL sel_acjs = wv_sel("setAllowsContentJavaScript:");
+                if (wv_send1(BOOL, wp, wv_sel("respondsToSelector:"), sel_acjs)) {
+                    wv_send1(void, wp, sel_acjs, (BOOL)(enabled ? 1 : 0));
+                }
+            }
+        }
+    }
     wv_pool_pop(pool);
     return 1;
 }
@@ -1240,7 +1290,7 @@ int alya_webview_set_user_agent(alya_webview_t *w, const char *ua) {
         ua = "";
     }
     pool = wv_pool_push();
-    objc_msgSend(w->view, wv_sel("setCustomUserAgent:"), wv_nsstr(ua));
+    wv_send1(void, w->view, wv_sel("setCustomUserAgent:"), wv_nsstr(ua));
     wv_pool_pop(pool);
     return 1;
 }
@@ -1262,8 +1312,8 @@ extern void CGEventPost(int tap, CGEventRef ev);
 extern void CFRelease(void *ref);
 
 static double wv_uptime(void) {
-    id pi = objc_msgSend((id)objc_getClass("NSProcessInfo"),
-                         wv_sel("processInfo"));
+    id pi = wv_send0(id, (id)objc_getClass("NSProcessInfo"),
+                     wv_sel("processInfo"));
     if (pi == NULL) {
         return 0.0;
     }
@@ -1274,7 +1324,7 @@ static long wv_window_number(alya_webview_t *w) {
     if (w == NULL || w->win == NULL) {
         return 0;
     }
-    return (long)objc_msgSend(w->win, wv_sel("windowNumber"));
+    return wv_send0(long, w->win, wv_sel("windowNumber"));
 }
 
 static int wv_post_mouse(alya_webview_t *w, unsigned long type, int x,
@@ -1289,14 +1339,14 @@ static int wv_post_mouse(alya_webview_t *w, unsigned long type, int x,
     loc.x = (double)x;
     loc.y = (double)(w->height - y); // base coords: origin bottom-left
     pool = wv_pool_push();
-    app = objc_msgSend((id)objc_getClass("NSApplication"),
-                       wv_sel("sharedApplication"));
-    ev = objc_msgSend((id)objc_getClass("NSEvent"),
-                      wv_sel("mouseEventWithType:location:modifierFlags:timestamp:windowNumber:context:eventNumber:clickCount:pressure:"),
-                      type, loc, (unsigned long)0, wv_uptime(),
-                      wv_window_number(w), NULL, (long)0, clicks, (double)1.0);
+    app = wv_send0(id, (id)objc_getClass("NSApplication"),
+                   wv_sel("sharedApplication"));
+    ev = wv_send9(id, (id)objc_getClass("NSEvent"),
+                  wv_sel("mouseEventWithType:location:modifierFlags:timestamp:windowNumber:context:eventNumber:clickCount:pressure:"),
+                  type, loc, (unsigned long)0, wv_uptime(),
+                  wv_window_number(w), NULL, (long)0, clicks, (double)1.0);
     if (ev != NULL) {
-        objc_msgSend(app, wv_sel("postEvent:atStart:"), ev, (BOOL)0);
+        wv_send2(void, app, wv_sel("postEvent:atStart:"), ev, (BOOL)0);
     }
     wv_pool_pop(pool);
     return ev != NULL ? 1 : 0;
@@ -1374,16 +1424,16 @@ static int wv_post_key(alya_webview_t *w, int code, const char *chars,
     loc.x = 0;
     loc.y = 0;
     pool = wv_pool_push();
-    app = objc_msgSend((id)objc_getClass("NSApplication"),
-                       wv_sel("sharedApplication"));
-    ev = objc_msgSend((id)objc_getClass("NSEvent"),
-                      wv_sel("keyEventWithType:location:modifierFlags:timestamp:windowNumber:context:characters:charactersIgnoringModifiers:isARepeat:keyCode:"),
-                      (unsigned long)(down ? 10 : 11), loc,
-                      (unsigned long)0, wv_uptime(), wv_window_number(w),
-                      NULL, wv_nsstr(chars), wv_nsstr(chars), (BOOL)0,
-                      (unsigned short)(code & 0xFFFF));
+    app = wv_send0(id, (id)objc_getClass("NSApplication"),
+                   wv_sel("sharedApplication"));
+    ev = wv_send10(id, (id)objc_getClass("NSEvent"),
+                   wv_sel("keyEventWithType:location:modifierFlags:timestamp:windowNumber:context:characters:charactersIgnoringModifiers:isARepeat:keyCode:"),
+                   (unsigned long)(down ? 10 : 11), loc,
+                   (unsigned long)0, wv_uptime(), wv_window_number(w),
+                   NULL, wv_nsstr(chars), wv_nsstr(chars), (BOOL)0,
+                   (unsigned short)(code & 0xFFFF));
     if (ev != NULL) {
-        objc_msgSend(app, wv_sel("postEvent:atStart:"), ev, (BOOL)0);
+        wv_send2(void, app, wv_sel("postEvent:atStart:"), ev, (BOOL)0);
     }
     wv_pool_pop(pool);
     return ev != NULL ? 1 : 0;
@@ -1483,8 +1533,8 @@ int alya_webview_set_zoom(alya_webview_t *w, double factor) {
     at.x = 0;
     at.y = 0;
     pool = wv_pool_push();
-    objc_msgSend(w->view, wv_sel("setMagnification:centeredAtPoint:"),
-                 factor, at);
+    wv_send2(void, w->view, wv_sel("setMagnification:centeredAtPoint:"),
+             factor, at);
     wv_pool_pop(pool);
     return 1;
 }
@@ -1522,26 +1572,26 @@ static void wv_refresh_scripts(alya_webview_t *w) {
         return;
     }
     pool = wv_pool_push();
-    config = objc_msgSend(w->view, wv_sel("configuration"));
-    ucc = objc_msgSend(config, wv_sel("userContentController"));
-    objc_msgSend(ucc, wv_sel("removeAllUserScripts"));
+    config = wv_send0(id, w->view, wv_sel("configuration"));
+    ucc = wv_send0(id, config, wv_sel("userContentController"));
+    wv_send0(void, ucc, wv_sel("removeAllUserScripts"));
     if (!w->allow_menu) {
-        id s = objc_msgSend((id)objc_getClass("WKUserScript"),
-                            wv_sel("alloc"));
-        s = objc_msgSend(s,
-                         wv_sel("initWithSource:injectionTime:forMainFrameOnly:"),
-                         wv_nsstr(wv_script_nomenu), (long)0, (BOOL)0);
-        objc_msgSend(ucc, wv_sel("addUserScript:"), s);
-        objc_msgSend(s, wv_sel("release"));
+        id s = wv_send0(id, (id)objc_getClass("WKUserScript"),
+                        wv_sel("alloc"));
+        s = wv_send3(id, s,
+                     wv_sel("initWithSource:injectionTime:forMainFrameOnly:"),
+                     wv_nsstr(wv_script_nomenu), (long)0, (BOOL)0);
+        wv_send1(void, ucc, wv_sel("addUserScript:"), s);
+        wv_send0(void, s, wv_sel("release"));
     }
     if (w->block_keys) {
-        id s = objc_msgSend((id)objc_getClass("WKUserScript"),
-                            wv_sel("alloc"));
-        s = objc_msgSend(s,
-                         wv_sel("initWithSource:injectionTime:forMainFrameOnly:"),
-                         wv_nsstr(wv_script_shortcuts), (long)0, (BOOL)0);
-        objc_msgSend(ucc, wv_sel("addUserScript:"), s);
-        objc_msgSend(s, wv_sel("release"));
+        id s = wv_send0(id, (id)objc_getClass("WKUserScript"),
+                        wv_sel("alloc"));
+        s = wv_send3(id, s,
+                     wv_sel("initWithSource:injectionTime:forMainFrameOnly:"),
+                     wv_nsstr(wv_script_shortcuts), (long)0, (BOOL)0);
+        wv_send1(void, ucc, wv_sel("addUserScript:"), s);
+        wv_send0(void, s, wv_sel("release"));
     }
     wv_pool_pop(pool);
 }
@@ -1561,10 +1611,17 @@ int alya_webview_set_background(alya_webview_t *w, int r, int g, int b,
         return 0;
     }
     pool = wv_pool_push();
-    no = objc_msgSend((id)objc_getClass("NSNumber"),
-                      wv_sel("numberWithBool:"), (BOOL)(a >= 128 ? 1 : 0));
-    objc_msgSend(w->view, wv_sel("setValue:forKey:"), no,
-                 wv_nsstr("drawsBackground"));
+    no = wv_send1(id, (id)objc_getClass("NSNumber"),
+                  wv_sel("numberWithBool:"), (BOOL)(a >= 128 ? 1 : 0));
+    SEL sel_db = wv_sel("setDrawsBackground:");
+    if (wv_send1(BOOL, w->view, wv_sel("respondsToSelector:"), sel_db)) {
+        wv_send1(void, w->view, sel_db, (BOOL)(a >= 128 ? 1 : 0));
+    } else {
+        SEL sel_kvc = wv_sel("setValue:forKey:");
+        if (wv_send1(BOOL, w->view, wv_sel("respondsToSelector:"), sel_kvc)) {
+            wv_send2(void, w->view, sel_kvc, no, wv_nsstr("drawsBackground"));
+        }
+    }
     wv_pool_pop(pool);
     return 1;
 }
@@ -1613,9 +1670,9 @@ int alya_webview_set_borderless(alya_webview_t *w, int enabled) {
     }
     pool = wv_pool_push();
     if (enabled) {
-        objc_msgSend(w->win, wv_sel("setStyleMask:"), (unsigned long)0);
+        wv_send1(void, w->win, wv_sel("setStyleMask:"), (unsigned long)0);
     } else {
-        objc_msgSend(w->win, wv_sel("setStyleMask:"), w->orig_mask);
+        wv_send1(void, w->win, wv_sel("setStyleMask:"), w->orig_mask);
     }
     wv_pool_pop(pool);
     return 1;
@@ -1628,7 +1685,7 @@ int alya_webview_set_topmost(alya_webview_t *w, int enabled) {
     }
     pool = wv_pool_push();
     // NSFloatingWindowLevel = 3, NSNormalWindowLevel = 0.
-    objc_msgSend(w->win, wv_sel("setLevel:"), (long)(enabled ? 3 : 0));
+    wv_send1(void, w->win, wv_sel("setLevel:"), (long)(enabled ? 3 : 0));
     wv_pool_pop(pool);
     return 1;
 }
@@ -1642,8 +1699,8 @@ int alya_webview_set_opacity(alya_webview_t *w, double alpha) {
         return 0;
     }
     pool = wv_pool_push();
-    objc_msgSend(w->win, wv_sel("setAlphaValue:"), alpha);
-    objc_msgSend(w->win, wv_sel("setOpaque:"), (BOOL)(alpha >= 1.0 ? 1 : 0));
+    wv_send1(void, w->win, wv_sel("setAlphaValue:"), alpha);
+    wv_send1(void, w->win, wv_sel("setOpaque:"), (BOOL)(alpha >= 1.0 ? 1 : 0));
     wv_pool_pop(pool);
     return 1;
 }
@@ -1654,8 +1711,8 @@ int alya_webview_set_click_through(alya_webview_t *w, int enabled) {
         return 0;
     }
     pool = wv_pool_push();
-    objc_msgSend(w->win, wv_sel("setIgnoresMouseEvents:"),
-                 (BOOL)(enabled ? 1 : 0));
+    wv_send1(void, w->win, wv_sel("setIgnoresMouseEvents:"),
+             (BOOL)(enabled ? 1 : 0));
     wv_pool_pop(pool);
     return 1;
 }
@@ -1669,7 +1726,7 @@ int alya_webview_set_fullscreen(alya_webview_t *w, int enabled) {
         return 1;
     }
     pool = wv_pool_push();
-    objc_msgSend(w->win, wv_sel("toggleFullScreen:"), NULL);
+    wv_send1(void, w->win, wv_sel("toggleFullScreen:"), NULL);
     wv_pool_pop(pool);
     w->is_fullscreen = enabled ? 1 : 0;
     return 1;
@@ -1681,9 +1738,9 @@ int alya_webview_focus(alya_webview_t *w) {
         return 0;
     }
     pool = wv_pool_push();
-    objc_msgSend(w->win, wv_sel("makeKeyAndOrderFront:"), NULL);
+    wv_send1(void, w->win, wv_sel("makeKeyAndOrderFront:"), NULL);
     if (w->view != NULL) {
-        objc_msgSend(w->win, wv_sel("makeFirstResponder:"), w->view);
+        wv_send1(void, w->win, wv_sel("makeFirstResponder:"), w->view);
     }
     wv_pool_pop(pool);
     return 1;
@@ -1695,7 +1752,7 @@ int alya_webview_minimize(alya_webview_t *w) {
         return 0;
     }
     pool = wv_pool_push();
-    objc_msgSend(w->win, wv_sel("miniaturize:"), NULL);
+    wv_send1(void, w->win, wv_sel("miniaturize:"), NULL);
     wv_pool_pop(pool);
     return 1;
 }
@@ -1706,14 +1763,14 @@ int alya_webview_restore(alya_webview_t *w) {
         return 0;
     }
     pool = wv_pool_push();
-    objc_msgSend(w->win, wv_sel("deminiaturize:"), NULL);
+    wv_send1(void, w->win, wv_sel("deminiaturize:"), NULL);
     wv_pool_pop(pool);
     return 1;
 }
 
 static double wv_screen_h(void) {
-    id screen = objc_msgSend((id)objc_getClass("NSScreen"),
-                             wv_sel("mainScreen"));
+    id screen = wv_send0(id, (id)objc_getClass("NSScreen"),
+                         wv_sel("mainScreen"));
     NSRect fr;
     if (screen == NULL) {
         return 800.0;
@@ -1738,7 +1795,7 @@ int alya_webview_set_position(alya_webview_t *w, int x, int y) {
     origin.x = (double)x;
     origin.y = wv_screen_h() - (double)y - (double)w->height;
     pool = wv_pool_push();
-    objc_msgSend(w->win, wv_sel("setFrameOrigin:"), origin);
+    wv_send1(void, w->win, wv_sel("setFrameOrigin:"), origin);
     wv_pool_pop(pool);
     return 1;
 }
@@ -1749,7 +1806,7 @@ int alya_webview_stop(alya_webview_t *w) {
         return 0;
     }
     pool = wv_pool_push();
-    objc_msgSend(w->view, wv_sel("stopLoading"));
+    wv_send0(void, w->view, wv_sel("stopLoading"));
     wv_pool_pop(pool);
     return 1;
 }
@@ -1760,7 +1817,7 @@ int alya_webview_reload_bypass(alya_webview_t *w) {
         return 0;
     }
     pool = wv_pool_push();
-    objc_msgSend(w->view, wv_sel("reloadFromOrigin"));
+    wv_send0(void, w->view, wv_sel("reloadFromOrigin"));
     wv_pool_pop(pool);
     return 1;
 }
@@ -1776,20 +1833,20 @@ int alya_webview_poll(alya_webview_t *w) {
         return ALYA_WEBVIEW_EVENT_NONE;
     }
     pool = wv_pool_push();
-    app = objc_msgSend((id)objc_getClass("NSApplication"),
-                       wv_sel("sharedApplication"));
-    distant = objc_msgSend((id)objc_getClass("NSDate"),
-                           wv_sel("distantPast"));
+    app = wv_send0(id, (id)objc_getClass("NSApplication"),
+                   wv_sel("sharedApplication"));
+    distant = wv_send0(id, (id)objc_getClass("NSDate"),
+                       wv_sel("distantPast"));
     mode = wv_nsstr("kCFRunLoopDefaultMode");
     for (;;) {
-        ev = objc_msgSend(app,
-                          wv_sel("nextEventMatchingMask:untilDate:inMode:dequeue:"),
-                          (unsigned long long)0xFFFFFFFFFFFFFFFFULL, distant,
-                          mode, (long long)1);
+        ev = wv_send4(id, app,
+                      wv_sel("nextEventMatchingMask:untilDate:inMode:dequeue:"),
+                      (unsigned long long)0xFFFFFFFFFFFFFFFFULL, distant,
+                      mode, (long long)1);
         if (ev == NULL) {
             break;
         }
-        objc_msgSend(app, wv_sel("sendEvent:"), ev);
+        wv_send1(void, app, wv_sel("sendEvent:"), ev);
     }
     wv_pool_pop(pool);
     if (w->head == w->tail) {
