@@ -1,0 +1,13 @@
+{
+  "title": "## KI-Codeüberprüfung (nur unverbindlich — führt niemals zusammen)",
+  "risk": "Risiko",
+  "static": "Statisch",
+  "static_clean": "statisch sauber",
+  "static_fail": "statisch FEHLERHAFT",
+  "static_skipped": "statisch übersprungen",
+  "general_notes": "Allgemeine Hinweise",
+  "fixed_since": "Seit letzter Prüfung behoben",
+  "no_issues": "Keine Probleme gefunden.",
+  "advice": "_Automatisierte Prüfung. Als unverbindlichen Hinweis behandeln: vor dem Handeln verifizieren._",
+  "language_name": "German"
+}

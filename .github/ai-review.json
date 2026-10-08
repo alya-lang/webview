@@ -1,0 +1,7 @@
+{
+  "language": "en",
+  "inline_severities": ["major", "minor"],
+  "ignore_paths": [],
+  "request_changes_on": "never",
+  "max_findings": 25
+}

@@ -1,0 +1,8 @@
+# Alya Formatter Configuration (.alyafmt)
+# Official configuration schema for packages under the alya-lang ecosystem.
+# Documentation: https://github.com/alya-lang/alya
+
+[fmt]
+# Paths, directories, or patterns to exclude from `alya fmt` analysis:
+# exclude = ["generated"]
+exclude = []

@@ -1,0 +1,41 @@
+# Build and compilation outputs
+/target/
+docs/
+*.exe
+*.o
+*.s
+*.app
+*.dll
+*.so
+*.dylib
+
+# Alya runtime, packages, and caches
+.alya/
+alya.lock
+alya.lock.bak
+*.db
+*.log
+RELEASE_NOTES.md
+__pycache__/
+*.pyc
+
+# Environment configuration files
+.env
+.env.local
+.env.*.local
+
+# Operating System artifacts
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE & Text Editor configurations
+.idea/
+*.swp
+*.swo
+*~
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json

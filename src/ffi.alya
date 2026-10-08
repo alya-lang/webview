@@ -1,0 +1,6 @@
+# Native C FFI declarations for webview
+# Part of the Alya Language package ecosystem (https://github.com/alya-lang)
+
+extern "C" from "webview"
+    function alya_webview_add(a: i32, b: i32) -> i32
+end

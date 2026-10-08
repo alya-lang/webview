@@ -1,0 +1,50 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Alya: Test",
+      "type": "shell",
+      "command": "alya test",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Alya: Lint",
+      "type": "shell",
+      "command": "alya lint . --check",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Alya: Format Check",
+      "type": "shell",
+      "command": "alya fmt . --check",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Alya: Format In-Place",
+      "type": "shell",
+      "command": "alya fmt .",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Alya: Build Docs",
+      "type": "shell",
+      "command": "alya doc . -o docs --markdown",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Alya: Run Demo",
+      "type": "shell",
+      "command": "alya run examples/demo.alya",
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}

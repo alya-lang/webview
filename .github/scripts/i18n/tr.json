@@ -1,0 +1,13 @@
+{
+  "title": "## AI kod incelemesi (yaln\u0131zca tavsiye \u2014 asla birle\u015ftirmez)",
+  "risk": "Risk",
+  "static": "Statik",
+  "static_clean": "statik temiz",
+  "static_fail": "statik HATALI",
+  "static_skipped": "statik atland\u0131",
+  "general_notes": "Genel notlar",
+  "fixed_since": "Son incelemeden beri d\u00fczeltilenler",
+  "no_issues": "Sorun bulunamad\u0131.",
+  "advice": "_Otomatik inceleme. G\u00fcvenilmez tavsiye olarak de\u011ferlendirin: i\u015flem yapmadan \u00f6nce do\u011frulay\u0131n._",
+  "language_name": "Turkish"
+}

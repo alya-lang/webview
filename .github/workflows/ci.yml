@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: Linux x64
+          - os: ubuntu-24.04-arm
+            label: Linux ARM64
+          - os: windows-latest
+            label: Windows x64
+          - os: windows-11-arm
+            label: Windows ARM64
+          - os: macos-latest
+            label: macOS ARM64
+          - os: macos-15-intel
+            label: macOS Intel
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Alya Compiler
+        uses: alya-lang/setup-alya@v1
+        with:
+          version: 'latest'
+
+      - name: Verify alya installation
+        run: |
+          alya --version
+
+      - name: Check code formatting
+        run: |
+          alya fmt . --check
+
+      - name: Run static analysis (linter)
+        run: |
+          alya lint . --check
+
+      - name: Check package manifest
+        run: |
+          alya pkg list
+
+      - name: Install dependencies
+        run: |
+          alya install
+
+      - name: Run package test suite
+        env:
+          # Inner `alya test` suites default to a 60s per-binary timeout;
+          # heavy suites exceed it on slow runners.
+          ALYA_TEST_TIMEOUT_SECS: '600'
+        run: |
+          alya test
+
+      - name: Run micro-benchmarks smoke test
+        if: hashFiles('benches/bench_basic.alya') != ''
+        run: |
+          alya run benches/bench_basic.alya
+
+      - name: Build documentation
+        shell: bash
+        run: |
+          alya doc . -o docs --markdown
+          if [ -f docs/index.md ]; then
+            echo "### 📖 API Documentation Summary" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Full HTML and Markdown documentation has been generated and archived in the **[api-docs]** artifact." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            sed -E 's/\[([^]]+)\]\([^)]+\)/\1/g' docs/index.md | grep -v "Official API reference" | grep -v "^# " >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload documentation artifact
+        uses: actions/upload-artifact@v7
+        if: matrix.label == 'Linux x64'
+        with:
+          name: api-docs
+          path: docs/

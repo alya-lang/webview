@@ -1,0 +1,53 @@
+name: Code scanning
+
+# Runs the Alya linter with SARIF output and uploads the results to GitHub
+# code scanning (Security tab findings + pull request annotations).
+# Findings do not fail this workflow; they are tracked as code scanning
+# alerts instead (the `alya lint . --check` CI gate lives in ci.yml).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 4 * * 1' # Weekly on Monday at 04:00 UTC
+  workflow_dispatch:
+
+# Cancel superseded runs on rapid pushes to the same ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  alya-lint:
+    name: Alya lint SARIF
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Alya
+        uses: alya-lang/setup-alya@v1
+
+      - name: Run Alya linter (SARIF)
+        run: alya lint . --format sarif -o alya-lint.sarif
+
+      - name: Upload SARIF to code scanning
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: alya-lint.sarif
+          category: alya-lint
+
+      - name: Upload SARIF as debug artifact
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: alya-lint-sarif
+          path: alya-lint.sarif
+          retention-days: 7

@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "alya",
+      "request": "launch",
+      "name": "Alya: Debug Current File",
+      "program": "${file}"
+    },
+    {
+      "type": "alya",
+      "request": "launch",
+      "name": "Alya: Debug Basic Tests",
+      "program": "${workspaceFolder}/tests/test_basic.alya"
+    },
+    {
+      "type": "alya",
+      "request": "launch",
+      "name": "Alya: Run Example Demo",
+      "program": "${workspaceFolder}/examples/demo.alya"
+    }
+  ]
+}

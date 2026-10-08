@@ -1,0 +1,13 @@
+# Alya Test/Bench Discovery Configuration (.alyatest)
+# Official configuration schema for packages under the alya-lang ecosystem.
+# Documentation: https://github.com/alya-lang/alya
+
+[test]
+# Paths, directories, or patterns to exclude from `alya test` discovery:
+# exclude = ["slow"]
+exclude = []
+
+[bench]
+# Paths, directories, or patterns to exclude from `alya bench` discovery:
+# exclude = ["heavy"]
+exclude = []

@@ -1,0 +1,18 @@
+# Alya Linter Configuration (.alyalint)
+# Official configuration schema for packages under the alya-lang ecosystem.
+# Documentation: https://github.com/alya-lang/alya
+
+[lint]
+# Rules to ignore project-wide:
+# Options: "unused-import", "unused-var", "unused-param", "dead-code",
+#          "idiomatic-style", "self-comparison", "constant-condition",
+#          "useless-expression", "naming-convention"
+disabled_rules = []
+
+# Paths, directories, or patterns to exclude from lint analysis:
+# exclude = ["vendor", "tests/fixtures"]
+exclude = []
+
+# Rule-specific severity overrides ("warning", "info", "error", "off"):
+# "dead-code" = "error"
+# "unused-var" = "warning"

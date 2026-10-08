@@ -1,0 +1,13 @@
+{
+  "title": "## Revue de code par IA (indicative uniquement — ne fusionne jamais)",
+  "risk": "Risque",
+  "static": "Statique",
+  "static_clean": "statique propre",
+  "static_fail": "statique EN ÉCHEC",
+  "static_skipped": "statique ignorée",
+  "general_notes": "Notes générales",
+  "fixed_since": "Corrigé depuis la dernière revue",
+  "no_issues": "Aucun problème détecté.",
+  "advice": "_Revue automatisée. À considérer comme un avis non fiable : vérifiez avant d'agir._",
+  "language_name": "French"
+}

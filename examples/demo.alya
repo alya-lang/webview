@@ -1,0 +1,163 @@
+## Example usage and walkthrough for webview
+## Part of the Alya Language package ecosystem (https://github.com/alya-lang)
+
+import "../src/lib.alya" as pkg
+
+function main()
+    say "=== webview Package Showcase ==="
+    say ""
+
+    # ───────────────────────────────────────────────────────────
+    # 1. Basic Facade Greeting
+    # ───────────────────────────────────────────────────────────
+    say "--- 1. Facade Greeting ---"
+    let greeting_default = pkg::hello()
+    say "Default: " + greeting_default
+
+    let greeting_custom = pkg::hello("Alya Developer")
+    say "Custom:  " + greeting_custom
+    say ""
+
+    # ───────────────────────────────────────────────────────────
+    # 2. Enumeration Values
+    # ───────────────────────────────────────────────────────────
+    say "--- 2. Enumeration Values ---"
+    say "WebviewStatus.Pending  = " + str(pkg::WebviewStatus.Pending)
+    say "WebviewStatus.Active   = " + str(pkg::WebviewStatus.Active)
+    say "WebviewStatus.Archived = " + str(pkg::WebviewStatus.Archived)
+    say "WebviewStatus.Error    = " + str(pkg::WebviewStatus.Error)
+
+    say "WebviewPriority.Low      = " + str(pkg::WebviewPriority.Low)
+    say "WebviewPriority.Normal   = " + str(pkg::WebviewPriority.Normal)
+    say "WebviewPriority.High     = " + str(pkg::WebviewPriority.High)
+    say "WebviewPriority.Critical = " + str(pkg::WebviewPriority.Critical)
+
+    say "WebviewStyle.Standard = " + str(pkg::WebviewStyle.Standard)
+    say "WebviewStyle.Formal   = " + str(pkg::WebviewStyle.Formal)
+    say "WebviewStyle.Casual   = " + str(pkg::WebviewStyle.Casual)
+    say ""
+
+    # ───────────────────────────────────────────────────────────
+    # 3. Struct Models & Constructors
+    # ───────────────────────────────────────────────────────────
+    say "--- 3. Struct Models & Constructors ---"
+    let cfg = pkg::new_config("Community", 5, pkg::WebviewPriority.High, pkg::WebviewStyle.Formal)
+    say "Config Name:     " + cfg.name
+    say "Config Count:    " + str(cfg.count)
+    say "Config Priority: " + str(cfg.priority)
+    say "Config Style:    " + str(cfg.style)
+    say "Config Enabled:  " + str(cfg.enabled)
+
+    let stats = pkg::make_stats(100, 92, 6, 2)
+    say "Stats Total:     " + str(stats.total)
+    say "Stats Passed:    " + str(stats.passed)
+    say "Stats Failed:    " + str(stats.failed)
+    say "Stats Skipped:   " + str(stats.skipped)
+    say "Stats Checked:   " + str(stats.total_checked())
+    say "Stats Rate:      " + stats.success_rate()
+    say ""
+
+    # ───────────────────────────────────────────────────────────
+    # 4. Struct Methods & Immutability
+    # ───────────────────────────────────────────────────────────
+    say "--- 4. Struct Methods & Immutability ---"
+    say "Summary:         " + cfg.summary()
+    say "Description:     " + cfg.describe()
+    say "Is Valid:        " + str(cfg.is_valid())
+    say "Is Enabled:      " + str(cfg.is_enabled())
+
+    let updated_cfg = cfg.with_name("Core Contributors")
+    say "Updated Name:    " + updated_cfg.name
+    say "Original Name:   " + cfg.name
+
+    let critical_cfg = cfg.with_priority(pkg::WebviewPriority.Critical)
+    say "Updated Prio:    " + str(critical_cfg.priority)
+    say ""
+
+    # ───────────────────────────────────────────────────────────
+    # 5. Result Container Pattern
+    # ───────────────────────────────────────────────────────────
+    say "--- 5. Result Container Pattern ---"
+    let ok_res = pkg::ok_result(42, "Processed payload successfully")
+    say "Ok Result is_ok:    " + str(ok_res.is_ok())
+    say "Ok Result message:  " + ok_res.message
+    say "Ok Result unwrap:   " + ok_res.unwrap_or("fallback")
+
+    let err_res = pkg::error_result("Processing failed", ["Disk full", "Permission denied"])
+    say "Err Result is_err:  " + str(err_res.is_error())
+    say "Err Result message: " + err_res.message
+    say "Err Result unwrap:  " + err_res.unwrap_or("safe default")
+    say "Err Count:          " + str(len(err_res.errors))
+    say ""
+
+    # ───────────────────────────────────────────────────────────
+    # 6. Structural Duck Typing (Interfaces)
+    # ───────────────────────────────────────────────────────────
+    say "--- 6. Duck Typing (Interfaces) ---"
+    if cfg is pkg::Summarizable
+        say "Summarizable dispatch: " + pkg::format_summary(cfg)
+    end
+    if cfg is pkg::Describable
+        say "Describable dispatch:  " + pkg::format_description(cfg)
+    end
+    say ""
+
+    # ───────────────────────────────────────────────────────────
+    # 7. Workflow Processing & Batching
+    # ───────────────────────────────────────────────────────────
+    say "--- 7. Workflow Processing & Batching ---"
+    let single_res = pkg::process("Analytics", 3, pkg::WebviewPriority.High)
+    say "Single Process Result: " + pkg::format_result(single_res)
+
+    let items = ["Alpha", "Beta", "Gamma"]
+    let batch_res = pkg::process_batch(items)
+    say "Batch count: " + str(len(batch_res))
+    for b in batch_res
+        say "  - " + b
+    end
+    say ""
+
+    # ───────────────────────────────────────────────────────────
+    # 8. Control Flow & Pattern Matching Utilities
+    # ───────────────────────────────────────────────────────────
+    say "--- 8. Utility Functions ---"
+    say "Clamp (-5 in [0, 100]):  " + str(pkg::clamp(-5, 0, 100))
+    say "Clamp (50 in [0, 100]):  " + str(pkg::clamp(50, 0, 100))
+    say "Clamp (150 in [0, 100]): " + str(pkg::clamp(150, 0, 100))
+
+    say "Pluralize (1):           " + pkg::pluralize(1, "item", "items")
+    say "Pluralize (5):           " + pkg::pluralize(5, "item", "items")
+
+    let repeated = pkg::repeat_string("echo", 3)
+    say "Repeat string count:     " + str(len(repeated))
+    say ""
+
+    # ───────────────────────────────────────────────────────────
+    # 9. Destructuring: Tuples & Maps
+    # ───────────────────────────────────────────────────────────
+    say "--- 9. Destructuring ---"
+    let (label, count) = ("example", 42)
+    say "Tuple label: " + label
+    say "Tuple count: " + str(count)
+
+    let info = { "package": "webview", "version": "0.1.0" }
+    let { package: pkg_name, version: pkg_ver } = info
+    say "Map package: " + pkg_name
+    say "Map version: " + pkg_ver
+    say ""
+
+    # ───────────────────────────────────────────────────────────
+    # 10. Feature-Gated API (`extras`, default-on)
+    # ───────────────────────────────────────────────────────────
+    say "--- 10. Feature-Gated Extras ---"
+    @cfg(feature = "extras")
+    say "Extras greeting: " + pkg::extra_greeting("Developer")
+    @cfg(not(feature = "extras"))
+    say "Extras greeting: (disabled — rebuild with --features extras)"
+    say ""
+
+    say ""
+    say "Done!"
+end
+
+main()

@@ -1,0 +1,113 @@
+name: AI code review
+
+# Advisory-only code review for Alya package PRs. Static analysis
+# (`alya fmt/lint/check` — parse/type only, NEVER build/run/test) plus a
+# free-model review. Posts one upserted summary comment and one inline
+# review per run; never merges, never labels, never blocks CI.
+#
+# Prompt-injection posture:
+# - pull_request_target: the PR head is checked out for STATIC ANALYSIS
+#   ONLY. `install/test/run/bench` never execute here.
+# - Fork diffs MAY reach the model (community PRs come from forks), but
+#   the model runs scrubbed (no GH_TOKEN), in an empty workdir, under a
+#   deny-by-default opencode permission file.
+# - Findings are pinned to added diff lines; paths must be changed .alya
+#   files. No model text ever reaches a shell.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ai-code-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout base (trusted scripts and config live here)
+        # NOTE: no `ref:` on purpose. For pull_request_target, the
+        # default $GITHUB_SHA is the CURRENT base-branch head, while
+        # `pull_request.base.sha` is the PR's (possibly stale) recorded
+        # base and would pin long-lived PRs to old reviewer code.
+        uses: actions/checkout@v7
+        with:
+          path: base
+          persist-credentials: false
+
+      - name: Checkout PR head (static analysis only, never executed)
+        # allow-unsafe-pr-checkout is the documented opt-in for reading
+        # fork code under pull_request_target. The ONLY commands ever run
+        # on this checkout are `alya fmt/lint/check` (parse/type, no
+        # codegen, no execution); install/test/run/bench never run here.
+        # CRITICAL: nothing executable is ever taken from this checkout —
+        # the review script and config always come from `base/` above, so
+        # a malicious PR cannot rewrite the reviewer itself.
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
+          persist-credentials: false
+          allow-unsafe-pr-checkout: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.x'
+
+      - name: Set up Alya Compiler
+        uses: alya-lang/setup-alya@v1
+        with:
+          version: 'latest'
+
+      - name: Collect static analysis
+        # Runs inside the PR tree, but `alya` here only parses/types and
+        # the driver script itself comes from `base/` (see below).
+        working-directory: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          PKG_DIR: .
+          STATIC_JSON: ${{ runner.temp }}/static.json
+        run: |
+          FILES=$(gh pr diff "$PR_NUMBER" --repo "$REPO" --name-only)
+          CHANGED=$(echo "$FILES" | grep '\.alya$' || true)
+          echo "$CHANGED"
+          CHANGED_FILES="$CHANGED" python ../base/.github/scripts/ai_code_review.py collect
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install opencode CLI
+        run: bun install -g --trust @opencode/cli
+
+      - name: Deny-by-default opencode permissions
+        run: |
+          mkdir -p "$HOME/.config/opencode"
+          printf '%s\n' '{' \
+            '  "permission": {' \
+            '    "edit": "deny",' \
+            '    "write": "deny",' \
+            '    "bash": "deny",' \
+            '    "patch": "deny",' \
+            '    "*": "ask"' \
+            '  }' \
+            '}' > "$HOME/.config/opencode/opencode.json"
+
+      - name: AI review (summary + inline, advisory)
+        # Driver script AND config come from `base/` — never from the PR
+        # tree. Only the diff text and static results cross the boundary.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          REPO_DIR: base
+          AI_MODELS: opencode/muse-spark-1.3-contributor-free,opencode/nemotron-3-ultra-free,opencode/mimo-v2.6-flash-free,opencode/big-pickle,opencode/space-bunny-free
+          STATIC_JSON: ${{ runner.temp }}/static.json
+        run: python base/.github/scripts/ai_code_review.py review

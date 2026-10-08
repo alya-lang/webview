@@ -1,0 +1,13 @@
+{
+  "title": "## AI code review (advisory only \u2014 never merges)",
+  "risk": "Risk",
+  "static": "Static",
+  "static_clean": "static clean",
+  "static_fail": "static FAIL",
+  "static_skipped": "static skipped",
+  "general_notes": "General notes",
+  "fixed_since": "Fixed since last review",
+  "no_issues": "No issues found.",
+  "advice": "_Automated review. Treat as untrusted advice: verify before acting._",
+  "language_name": "English"
+}

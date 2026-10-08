@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Alya Community & Discussions
+    url: https://github.com/alya-lang/alya/discussions
+    about: Ask questions, share ideas, or get help with Alya and packages.

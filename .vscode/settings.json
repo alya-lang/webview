@@ -1,0 +1,11 @@
+{
+  "editor.formatOnSave": true,
+  "[alya]": {
+    "editor.defaultFormatter": "alya-lang.vscode-alya",
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true
+  },
+  "alya.lsp.enable": true,
+  "alya.lint.runOnSave": true,
+  "alya.trace.server": "off"
+}

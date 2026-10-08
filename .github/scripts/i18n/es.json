@@ -1,0 +1,13 @@
+{
+  "title": "## Revisión de código por IA (solo orientativa — nunca fusiona)",
+  "risk": "Riesgo",
+  "static": "Estático",
+  "static_clean": "estático limpio",
+  "static_fail": "estático CON FALLOS",
+  "static_skipped": "estático omitido",
+  "general_notes": "Notas generales",
+  "fixed_since": "Corregido desde la última revisión",
+  "no_issues": "No se encontraron problemas.",
+  "advice": "_Revisión automatizada. Trátala como un consejo no fiable: verifica antes de actuar._",
+  "language_name": "Spanish"
+}

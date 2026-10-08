@@ -1,0 +1,124 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v0.1.0)'
+        required: true
+        default: 'v0.1.0'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.x'
+
+      - name: Generate Release Notes
+        id: notes
+        run: |
+          TAG="${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}"
+          python3 .github/scripts/generate_release_notes.py "$TAG"
+
+      - name: Set up Alya Compiler
+        uses: alya-lang/setup-alya@v1
+        with:
+          version: 'latest'
+
+      - name: Build documentation archives (HTML + Markdown)
+        shell: bash
+        run: |
+          TAG="${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}"
+          alya doc . -o release-docs-html --html
+          alya doc . -o release-docs-md --markdown
+          (cd release-docs-html && zip -qr "../docs-html.zip" .)
+          (cd release-docs-md && zip -qr "../docs-md.zip" .)
+          ls -la docs-html.zip docs-md.zip
+
+      - name: Build curated package archive (source + sha256)
+        shell: bash
+        run: |
+          REPO="${{ github.event.repository.name }}"
+          TAG="${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}"
+          # Allowlist staging: only install-time files enter the asset. The
+          # single top-level dir mirrors GitHub tag tarballs so installers can
+          # keep using `tar --strip-components 1`.
+          STAGE="pkg-stage/${REPO}-${TAG}"
+          mkdir -p "$STAGE"
+          cp alya.toml README.md LICENSE "$STAGE/"
+          cp -r src "$STAGE/"
+          if [ -d c ]; then cp -r c "$STAGE/"; fi
+          if [ -d examples ]; then cp -r examples "$STAGE/"; fi
+          # Pack with Python stdlib (tarfile+gzip): the runner's `tar` flavor
+          # varies (GNU vs bsdtar), but Python is already set up and always
+          # available. Reproducible bytes: sorted entries, zeroed
+          # mtimes/owners, PAX format, `gzip` mtime=0 — identical commits
+          # always produce identical archives.
+          python3 - "$STAGE" alya-pkg.tar.gz <<'EOF'
+          import sys, os, io, tarfile, gzip
+          stage, out = sys.argv[1], sys.argv[2]
+          top = os.path.basename(os.path.normpath(stage))
+          entries = []
+          for root, dirs, files in os.walk(stage):
+              dirs.sort()
+              for name in sorted(dirs) + sorted(files):
+                  full = os.path.join(root, name)
+                  arc = (top + "/" + os.path.relpath(full, stage)).replace(os.sep, "/")
+                  entries.append((full, arc))
+          entries.sort(key=lambda e: e[1])
+          buf = io.BytesIO()
+          with tarfile.open(fileobj=buf, mode="w", format=tarfile.PAX_FORMAT) as tf:
+              top_ti = tarfile.TarInfo(top + "/")
+              top_ti.type = tarfile.DIRTYPE
+              top_ti.mtime = 0
+              top_ti.uid = 0
+              top_ti.gid = 0
+              top_ti.uname = ""
+              top_ti.gname = ""
+              tf.addfile(top_ti)
+              for full, arc in entries:
+                  ti = tf.gettarinfo(full, arc)
+                  ti.mtime = 0
+                  ti.uid = 0
+                  ti.gid = 0
+                  ti.uname = ""
+                  ti.gname = ""
+                  if ti.isdir():
+                      tf.addfile(ti)
+                  else:
+                      with open(full, "rb") as f:
+                          tf.addfile(ti, f)
+          with open(out, "wb") as f:
+              f.write(gzip.compress(buf.getvalue(), compresslevel=9, mtime=0))
+          EOF
+          sha256sum alya-pkg.tar.gz > alya-pkg.tar.gz.sha256
+          ls -la alya-pkg.tar.gz alya-pkg.tar.gz.sha256
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.notes.outputs.tag }}
+          name: ${{ steps.notes.outputs.title }}
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+          files: |
+            docs-html.zip
+            docs-md.zip
+            alya-pkg.tar.gz
+            alya-pkg.tar.gz.sha256
