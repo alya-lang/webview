@@ -133,6 +133,14 @@ function main()
     runner_assert_true(r, pkg::get_zoom(null) < 0.01, "get_zoom null is ~0.0")
     runner_assert_eq(r, pkg::set_data_dir(null), true, "set_data_dir null resets")
     runner_assert_eq(r, pkg::set_extra_args(null), true, "set_extra_args null clears")
+    runner_assert_eq(r, pkg::set_background(null, 0, 0, 0, 255), false, "set_background null is 0")
+    runner_assert_eq(r, pkg::set_context_menu(null, 0), false, "set_context_menu null is 0")
+    runner_assert_eq(r, pkg::set_shortcut_block(null, 1), false, "set_shortcut_block null is 0")
+    runner_assert_eq(r, pkg::set_images(null, 0), false, "set_images null is 0")
+    runner_assert_eq(r, pkg::set_webgl(null, 0), false, "set_webgl null is 0")
+    runner_assert_eq(r, pkg::set_charset(null, "UTF-8"), false, "set_charset null is 0")
+    let ver = pkg::engine_version()
+    runner_assert_true(r, ver == "" or len(ver) > 0, "engine_version is a string")
 
     # ═══════════════════════════════════════════════════════════
     # 7. Native smoke: bundled C linked + backend selected

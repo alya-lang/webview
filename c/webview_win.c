@@ -725,6 +725,81 @@ int alya_webview_open_external(const char *url) {
     return ((INT_PTR)rc > 32) ? 1 : 0;
 }
 
+const char *alya_webview_engine_version(void) {
+    // Documented loader export; safe to call with NULL folder.
+    typedef HRESULT(STDMETHODCALLTYPE *wv_ver_fn)(LPCWSTR folder,
+                                                 LPWSTR *out);
+    static char cached[128];
+    static int probed = 0;
+    HMODULE loader;
+    wv_ver_fn fn;
+    LPWSTR v = NULL;
+    if (probed) {
+        return cached;
+    }
+    probed = 1;
+    cached[0] = '\0';
+    loader = wv_find_loader();
+    if (loader == NULL) {
+        return cached;
+    }
+    fn = (wv_ver_fn)(void *)GetProcAddress(
+        loader, "GetAvailableCoreWebView2BrowserVersionString");
+    if (fn == NULL) {
+        return cached;
+    }
+    if (SUCCEEDED(fn(NULL, &v)) && v != NULL) {
+        wv_wide_to_utf8_into(cached, sizeof(cached), v);
+        wv_free_str(v);
+    }
+    return cached;
+}
+
+int alya_webview_set_background(alya_webview_t *w, int r, int g, int b,
+                                int a) {
+    // Needs Controller2::put_DefaultBackgroundColor (unverified slots):
+    // report unsupported, never fault. See slot-map note above.
+    (void)w;
+    (void)r;
+    (void)g;
+    (void)b;
+    (void)a;
+    return 0;
+}
+
+int alya_webview_set_context_menu(alya_webview_t *w, int enabled) {
+    // Needs UI-delegate subscription slots (unverified): unsupported.
+    (void)w;
+    (void)enabled;
+    return 0;
+}
+
+int alya_webview_set_shortcut_block(alya_webview_t *w, int enabled) {
+    // Needs AddScriptToExecuteOnDocumentCreated (unverified): unsupported.
+    (void)w;
+    (void)enabled;
+    return 0;
+}
+
+int alya_webview_set_images(alya_webview_t *w, int enabled) {
+    // Needs Settings content slots (unverified): unsupported.
+    (void)w;
+    (void)enabled;
+    return 0;
+}
+
+int alya_webview_set_webgl(alya_webview_t *w, int enabled) {
+    (void)w;
+    (void)enabled;
+    return 0;
+}
+
+int alya_webview_set_charset(alya_webview_t *w, const char *cs) {
+    (void)w;
+    (void)cs;
+    return 0;
+}
+
 static alya_webview_t *wv_create_inner(const char *title, int width,
                                               int height, int priv) {
     alya_webview_t *w;

@@ -128,6 +128,7 @@ main()
 | Symbol | Visibility | Description |
 |---|---|---|
 | `backend()` | `pub function` | Returns `"windows"`, `"macos"`, or `"linux"` for the compiled target. |
+| `engine_version()` | `pub function` | Embeddable engine version (`""` when not probeable). |
 | `backend_id()` | `pub function` | Returns `1` (Windows), `2` (macOS), or `3` (Linux). |
 | `open(title, width, height)` | `pub function` | Opens a browser window; null without display or engine. |
 | `open_private(title, width, height)` | `pub function` | Opens an incognito window (no persistent profile). |
@@ -143,6 +144,12 @@ main()
 | `key_tap(win, code)` | `pub function` | Synthetic key tap (press + release). |
 | `key_text(win, text)` | `pub function` | Commits printable text to the page. |
 | `key_code(name)` | `pub function` | Maps `"Enter"`, `"Escape"`, `"Tab"`, … to the platform code (`-1` unknown). |
+| `set_background(win, r, g, b, a)` | `pub function` | Page base color (`1` when applied). |
+| `set_context_menu(win, enabled)` | `pub function` | Native context menu on/off (`1` when applied). |
+| `set_shortcut_block(win, enabled)` | `pub function` | Blocks Ctrl+P / PrintScreen / F12 / … in the page (`1` when applied). |
+| `set_images(win, enabled)` | `pub function` | Image loading on/off (`1` when applied). |
+| `set_webgl(win, enabled)` | `pub function` | WebGL on/off (`1` when applied). |
+| `set_charset(win, cs)` | `pub function` | Default text encoding (`1` when applied). |
 | `open_external(url)` | `pub function` | Opens a URL in the default browser; `1` when attempted (opt-in fallback). |
 | `destroy(win)` | `pub function` | Destroys a handle (null-safe, always `1`). |
 | `show(win)` / `hide(win)` | `pub function` | Shows or hides a window (null-safe). |
@@ -180,7 +187,7 @@ main()
 
 ### 🔭 Roadmap (v1.1)
 
-- Re-verify the remaining WebView2 vtable slots against real SDK headers (script toggle, user-agent via `Settings2`, zoom factor).
+- Re-verify the remaining WebView2 vtable slots against real SDK headers (script toggle, user-agent via `Settings2`, zoom factor, background color, context menu, dialogs).
 - Drive-by verification of the macOS (`WKWebView`) and Linux (`WebKitGTK`) backends on native runners.
 - Cookies (`CookieManager`), downloads (`DownloadStarting` + destination), DevTools protocol (`CallDevToolsProtocolMethod`), print-to-PDF, page capture, script dialogs, permission requests, custom schemes.
 - Page-side JS bridge helper (unified `window.alya` inbox on top of the platform channels).

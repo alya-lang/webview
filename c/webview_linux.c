@@ -61,6 +61,8 @@ struct alya_webview {
     int open;
     int ready;
     int api;
+    int allow_menu;  // native context menu policy (default 1)
+    int block_keys;  // shortcut-blocking user script installed
     int width;
     int height;
     int eval_state;
@@ -120,6 +122,20 @@ WV_DECL(const char *, webkit_web_view_get_uri, GtkWidget *v);
 WV_DECL(const char *, webkit_web_view_get_title, GtkWidget *v);
 WV_DECL(void *, webkit_web_view_get_settings, GtkWidget *v);
 WV_DECL(void *, webkit_web_view_get_user_content_manager, GtkWidget *v);
+WV_DECL(unsigned int, webkit_get_major_version, void);
+WV_DECL(unsigned int, webkit_get_minor_version, void);
+WV_DECL(unsigned int, webkit_get_micro_version, void);
+WV_DECL(void, webkit_web_view_set_background_color, GtkWidget *v,
+        void *rgba);
+WV_DECL(void, webkit_settings_set_auto_load_images, void *s, int v);
+WV_DECL(void, webkit_settings_set_enable_webgl, void *s, int v);
+WV_DECL(void, webkit_settings_set_default_charset, void *s,
+        const char *cs);
+WV_DECL(void *, webkit_user_script_new, const char *source, int frames,
+        int injection_time, const char **allow_list,
+        const char **block_list);
+WV_DECL(void, webkit_user_content_manager_add_script, void *m, void *s);
+WV_DECL(void, webkit_user_content_manager_remove_all_scripts, void *m);
 WV_DECL(void, webkit_settings_set_enable_javascript, void *s, int v);
 WV_DECL(void, webkit_settings_set_enable_developer_extras, void *s, int v);
 WV_DECL(void, webkit_settings_set_user_agent, void *s, const char *ua);
@@ -288,6 +304,16 @@ static int wv_load_all(void) {
     WV_LOAD(wv_h_gtk, gdk_event_put);
     WV_LOAD(wv_h_gtk, gdk_event_free);
     WV_LOAD(wv_h_gtk, gdk_unicode_to_keyval);
+    WV_LOAD(wv_h_webkit, webkit_get_major_version);
+    WV_LOAD(wv_h_webkit, webkit_get_minor_version);
+    WV_LOAD(wv_h_webkit, webkit_get_micro_version);
+    WV_LOAD(wv_h_webkit, webkit_web_view_set_background_color);
+    WV_LOAD(wv_h_webkit, webkit_settings_set_auto_load_images);
+    WV_LOAD(wv_h_webkit, webkit_settings_set_enable_webgl);
+    WV_LOAD(wv_h_webkit, webkit_settings_set_default_charset);
+    WV_LOAD(wv_h_webkit, webkit_user_script_new);
+    WV_LOAD(wv_h_webkit, webkit_user_content_manager_add_script);
+    WV_LOAD(wv_h_webkit, webkit_user_content_manager_remove_all_scripts);
 
     ok = 1;
     return 1;
@@ -417,6 +443,20 @@ static void wv_on_destroy(GtkWidget *win, void *data) {
     wv_push(w, ALYA_WEBVIEW_EVENT_CLOSE);
 }
 
+// Returning nonzero from "context-menu" suppresses the native menu.
+static int wv_on_context_menu(GtkWidget *view, void *menu, void *event,
+                              void *hit, void *data) {
+    alya_webview_t *w = (alya_webview_t *)data;
+    (void)view;
+    (void)menu;
+    (void)event;
+    (void)hit;
+    if (w != NULL && !w->allow_menu) {
+        return 1;
+    }
+    return 0;
+}
+
 static void wv_on_eval_41(GObject *src, GAsyncResult *res, void *data) {
     alya_webview_t *w = (alya_webview_t *)data;
     void *err = NULL;
@@ -499,6 +539,22 @@ int alya_webview_backend_id(void) {
 
 const char *alya_webview_backend_name(void) {
     return "linux";
+}
+
+const char *alya_webview_engine_version(void) {
+    static char cached[64];
+    static int probed = 0;
+    if (probed) {
+        return cached;
+    }
+    probed = 1;
+    cached[0] = '\0';
+    if (wv_load_all()) {
+        snprintf(cached, sizeof(cached), "%u.%u.%u",
+                 p_webkit_get_major_version(), p_webkit_get_minor_version(),
+                 p_webkit_get_micro_version());
+    }
+    return cached;
 }
 
 /* Launch configuration (process-wide, consumed by create below). */
@@ -624,6 +680,7 @@ static alya_webview_t *wv_create_inner(const char *title, int width,
         return NULL;
     }
     w->open = 1;
+    w->allow_menu = 1;
     w->width = width;
     w->height = height;
     wv_copy(w->title, sizeof(w->title), title);
@@ -664,6 +721,9 @@ static alya_webview_t *wv_create_inner(const char *title, int width,
                             0);
     p_g_signal_connect_data(w->win, "destroy", (void *)wv_on_destroy,
                             (void *)w, NULL, 0);
+    p_g_signal_connect_data(w->view, "context-menu",
+                            (void *)wv_on_context_menu, (void *)w, NULL,
+                            0);
 
     if (p_webkit_web_view_evaluate_javascript != NULL &&
         p_webkit_web_view_evaluate_javascript_finish != NULL) {
@@ -1247,6 +1307,132 @@ double alya_webview_get_zoom(alya_webview_t *w) {
         return 0.0;
     }
     return p_webkit_web_view_get_zoom_level(w->view);
+}
+
+/* Content-policy user scripts (document start, all frames). */
+static const char *wv_script_shortcuts =
+    "(function(){document.addEventListener('keydown',function(e){"
+    "var k=e.key||'';"
+    "if((e.ctrlKey&&(k==='p'||k==='P'))||k==='PrintScreen'||k==='F12'||"
+    "((e.ctrlKey||e.metaKey)&&e.shiftKey&&(k==='I'||k==='J'||k==='C'||k==='i'||k==='j'||k==='c'))||"
+    "((e.ctrlKey||e.metaKey)&&(k==='u'||k==='U'))){e.preventDefault();e.stopPropagation();}"
+    "},true);})();";
+static const char *wv_script_nomenu =
+    "(function(){document.addEventListener('contextmenu',function(e){"
+    "e.preventDefault();e.stopPropagation();"
+    "},true);})();";
+
+static void wv_refresh_scripts(alya_webview_t *w) {
+    void *ucm;
+    if (w == NULL || w->view == NULL) {
+        return;
+    }
+    ucm = p_webkit_web_view_get_user_content_manager(w->view);
+    if (ucm == NULL) {
+        return;
+    }
+    p_webkit_user_content_manager_remove_all_scripts(ucm);
+    if (!w->allow_menu) {
+        // Belt and suspenders next to the native signal suppressor.
+        void *s = p_webkit_user_script_new(wv_script_nomenu, 0, 0, NULL,
+                                           NULL);
+        if (s != NULL) {
+            p_webkit_user_content_manager_add_script(ucm, s);
+        }
+    }
+    if (w->block_keys) {
+        void *s = p_webkit_user_script_new(wv_script_shortcuts, 0, 0,
+                                           NULL, NULL);
+        if (s != NULL) {
+            p_webkit_user_content_manager_add_script(ucm, s);
+        }
+    }
+}
+
+typedef struct {
+    double red;
+    double green;
+    double blue;
+    double alpha;
+} wv_rgba_t;
+
+static int wv_clamp255(int v) {
+    if (v < 0) {
+        return 0;
+    }
+    if (v > 255) {
+        return 255;
+    }
+    return v;
+}
+
+int alya_webview_set_background(alya_webview_t *w, int r, int g, int b,
+                                int a) {
+    wv_rgba_t rgba;
+    if (w == NULL || w->view == NULL) {
+        return 0;
+    }
+    rgba.red = (double)wv_clamp255(r) / 255.0;
+    rgba.green = (double)wv_clamp255(g) / 255.0;
+    rgba.blue = (double)wv_clamp255(b) / 255.0;
+    rgba.alpha = (double)wv_clamp255(a) / 255.0;
+    p_webkit_web_view_set_background_color(w->view, &rgba);
+    return 1;
+}
+
+int alya_webview_set_context_menu(alya_webview_t *w, int enabled) {
+    if (w == NULL || w->view == NULL) {
+        return 0;
+    }
+    w->allow_menu = enabled ? 1 : 0;
+    wv_refresh_scripts(w);
+    return 1;
+}
+
+int alya_webview_set_shortcut_block(alya_webview_t *w, int enabled) {
+    if (w == NULL || w->view == NULL) {
+        return 0;
+    }
+    w->block_keys = enabled ? 1 : 0;
+    wv_refresh_scripts(w);
+    return 1;
+}
+
+static void *wv_view_settings(alya_webview_t *w) {
+    if (w == NULL || w->view == NULL) {
+        return NULL;
+    }
+    return p_webkit_web_view_get_settings(w->view);
+}
+
+int alya_webview_set_images(alya_webview_t *w, int enabled) {
+    void *s = wv_view_settings(w);
+    if (s == NULL) {
+        return 0;
+    }
+    p_webkit_settings_set_auto_load_images(s, enabled ? 1 : 0);
+    return 1;
+}
+
+int alya_webview_set_webgl(alya_webview_t *w, int enabled) {
+    void *s = wv_view_settings(w);
+    if (s == NULL) {
+        return 0;
+    }
+    p_webkit_settings_set_enable_webgl(s, enabled ? 1 : 0);
+    return 1;
+}
+
+int alya_webview_set_charset(alya_webview_t *w, const char *cs) {
+    void *s = wv_view_settings(w);
+    if (s == NULL) {
+        return 0;
+    }
+    if (cs == NULL || cs[0] == '\0') {
+        cs = "UTF-8";
+    }
+    p_webkit_settings_set_default_charset(s, cs);
+    return 1;
 }
 
 int alya_webview_poll(alya_webview_t *w) {

@@ -13,6 +13,7 @@ function main()
     say "--- 1. Backend ---"
     say "Backend id:   " + str(pkg::backend_id())
     say "Backend name: " + pkg::backend()
+    say "Engine:       " + pkg::engine_version()
     say ""
 
     # ───────────────────────────────────────────────────────────

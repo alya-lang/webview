@@ -107,6 +107,10 @@ int alya_webview_set_user_agent(alya_webview_t *w, const char *ua);
  * 0 when it was not (NULL/empty URL, headless helpers missing). */
 int alya_webview_open_external(const char *url);
 
+/* Embeddable engine version ("1.0.4258.31", "4.1.3", ...), "" when the
+ * engine cannot be probed. Never NULL. */
+const char *alya_webview_engine_version(void);
+
 /* Zoom factor (1.0 = 100%). set returns 1 when applied; get returns
  * the current factor, 0.0 when unknown. Backends without a safe zoom
  * path report 0/0.0 instead of risking a fault (see backend notes). */
@@ -132,6 +136,24 @@ int alya_webview_key_text(alya_webview_t *w, const char *text);
  * "Delete", "Left", "Up", "Right", "Down", "Home", "End",
  * "PageUp", "PageDown") to the platform code. Returns -1 when unknown. */
 int alya_webview_key_code(const char *name);
+
+/* Content policy toggles. Each returns 1 when applied, 0 when the
+ * backend cannot honor it (unsupported generation, missing engine).
+ * - background: page base color, components 0..255 (alpha honored
+ *   where compositing allows; ignored on fully opaque windows).
+ * - context_menu: 1 shows the native menu, 0 suppresses it.
+ * - shortcut_block: 1 swallows app-level shortcuts in the page
+ *   (Ctrl+P, PrintScreen, F12, Ctrl+Shift+I/J/C, Ctrl+U).
+ * - images: 1 loads images, 0 blocks them.
+ * - webgl: 1 enables WebGL, 0 disables it.
+ * - charset: default text encoding name ("UTF-8"); "" leaves default. */
+int alya_webview_set_background(alya_webview_t *w, int r, int g, int b,
+                                int a);
+int alya_webview_set_context_menu(alya_webview_t *w, int enabled);
+int alya_webview_set_shortcut_block(alya_webview_t *w, int enabled);
+int alya_webview_set_images(alya_webview_t *w, int enabled);
+int alya_webview_set_webgl(alya_webview_t *w, int enabled);
+int alya_webview_set_charset(alya_webview_t *w, const char *cs);
 
 int alya_webview_poll(alya_webview_t *w);
 int alya_webview_event_width(alya_webview_t *w);

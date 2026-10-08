@@ -22,6 +22,11 @@ pub function backend() -> string
     return native_backend_name()
 end
 
+## Returns the embeddable engine version (`""` when not probeable).
+pub function engine_version() -> string
+    return native_browser_engine_version()
+end
+
 ## Creates an empty browser event queue.
 pub function event_queue() -> WebviewEventQueue
     return event_queue_new()
@@ -121,6 +126,36 @@ end
 ## Maps a key name to the platform code (`-1` when unknown).
 pub function key_code(name: string) -> int
     return native_browser_key_code(name)
+end
+
+## Sets the page base color (`0..255` per channel).
+pub function set_background(win, r: int, g: int, b: int, a: int = 255) -> int
+    return native_browser_set_background(win, r, g, b, a)
+end
+
+## Toggles the native context menu (`1` shows, `0` suppresses).
+pub function set_context_menu(win, enabled: int) -> int
+    return native_browser_set_context_menu(win, enabled)
+end
+
+## Toggles in-page shortcut blocking (Ctrl+P, PrintScreen, F12, ...).
+pub function set_shortcut_block(win, enabled: int) -> int
+    return native_browser_set_shortcut_block(win, enabled)
+end
+
+## Toggles image loading.
+pub function set_images(win, enabled: int) -> int
+    return native_browser_set_images(win, enabled)
+end
+
+## Toggles WebGL.
+pub function set_webgl(win, enabled: int) -> int
+    return native_browser_set_webgl(win, enabled)
+end
+
+## Sets the default text encoding (`"UTF-8"`).
+pub function set_charset(win, cs: string) -> int
+    return native_browser_set_charset(win, cs)
 end
 
 ## Destroys a browser window handle (null-safe).

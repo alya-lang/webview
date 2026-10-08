@@ -71,6 +71,8 @@ struct alya_webview {
     int height;
     int eval_state;
     int eval_pending; // a completion block is still outstanding
+    int allow_menu;   // native context menu policy (default 1)
+    int block_keys;   // shortcut-blocking user script installed
     char url[ALYA_WEBVIEW_URL_CAP];
     char title[ALYA_WEBVIEW_TEXT_CAP];
     char message[ALYA_WEBVIEW_TEXT_CAP];
@@ -399,6 +401,32 @@ const char *alya_webview_backend_name(void) {
     return "macos";
 }
 
+const char *alya_webview_engine_version(void) {
+    // WebKit framework bundle version (always present with WKWebView).
+    static char cached[64];
+    static int probed = 0;
+    id pool;
+    id bundle;
+    id ver;
+    if (probed) {
+        return cached;
+    }
+    probed = 1;
+    cached[0] = '\0';
+    pool = wv_pool_push();
+    bundle = objc_msgSend((id)objc_getClass("NSBundle"),
+                          wv_sel("bundleWithIdentifier:"),
+                          wv_nsstr("com.apple.WebKit"));
+    if (bundle != NULL) {
+        ver = objc_msgSend(bundle,
+                           wv_sel("objectForInfoDictionaryKey:"),
+                           wv_nsstr("CFBundleShortVersionString"));
+        wv_copy(cached, sizeof(cached), wv_cstr(ver));
+    }
+    wv_pool_pop(pool);
+    return cached;
+}
+
 int alya_webview_open_external(const char *url) {
     id pool;
     id ws;
@@ -478,6 +506,7 @@ static alya_webview_t *wv_create_inner(const char *title, int width,
         return NULL;
     }
     w->open = 1;
+    w->allow_menu = 1;
     w->width = width;
     w->height = height;
     wv_copy(w->title, sizeof(w->title), title);
@@ -1145,6 +1174,111 @@ double alya_webview_get_zoom(alya_webview_t *w) {
     z = objc_msgSend_fpret(w->view, wv_sel("magnification"));
     wv_pool_pop(pool);
     return z;
+}
+
+/* Content-policy user scripts (document start, all frames). */
+static const char *wv_script_shortcuts =
+    "(function(){document.addEventListener('keydown',function(e){"
+    "var k=e.key||'';"
+    "if((e.ctrlKey&&(k==='p'||k==='P'))||k==='PrintScreen'||k==='F12'||"
+    "((e.ctrlKey||e.metaKey)&&e.shiftKey&&(k==='I'||k==='J'||k==='C'||k==='i'||k==='j'||k==='c'))||"
+    "((e.ctrlKey||e.metaKey)&&(k==='u'||k==='U'))){e.preventDefault();e.stopPropagation();}"
+    "},true);})();";
+static const char *wv_script_nomenu =
+    "(function(){document.addEventListener('contextmenu',function(e){"
+    "e.preventDefault();e.stopPropagation();"
+    "},true);})();";
+
+static void wv_refresh_scripts(alya_webview_t *w) {
+    id pool;
+    id config;
+    id ucc;
+    if (w == NULL || w->view == NULL) {
+        return;
+    }
+    pool = wv_pool_push();
+    config = objc_msgSend(w->view, wv_sel("configuration"));
+    ucc = objc_msgSend(config, wv_sel("userContentController"));
+    objc_msgSend(ucc, wv_sel("removeAllUserScripts"));
+    if (!w->allow_menu) {
+        id s = objc_msgSend((id)objc_getClass("WKUserScript"),
+                            wv_sel("alloc"));
+        s = objc_msgSend(s,
+                         wv_sel("initWithSource:injectionTime:forMainFrameOnly:"),
+                         wv_nsstr(wv_script_nomenu), (long)0, (BOOL)0);
+        objc_msgSend(ucc, wv_sel("addUserScript:"), s);
+        objc_msgSend(s, wv_sel("release"));
+    }
+    if (w->block_keys) {
+        id s = objc_msgSend((id)objc_getClass("WKUserScript"),
+                            wv_sel("alloc"));
+        s = objc_msgSend(s,
+                         wv_sel("initWithSource:injectionTime:forMainFrameOnly:"),
+                         wv_nsstr(wv_script_shortcuts), (long)0, (BOOL)0);
+        objc_msgSend(ucc, wv_sel("addUserScript:"), s);
+        objc_msgSend(s, wv_sel("release"));
+    }
+    wv_pool_pop(pool);
+}
+
+int alya_webview_set_background(alya_webview_t *w, int r, int g, int b,
+                                int a) {
+    // WKWebView honors page-background drawing through the
+    // long-standing drawsBackground key: transparent pages (wallpapers)
+    // set it to NO, opaque pages leave it on. The exact fill color
+    // comes from page CSS, so components are intentionally unused.
+    id pool;
+    id no;
+    (void)r;
+    (void)g;
+    (void)b;
+    if (w == NULL || w->view == NULL) {
+        return 0;
+    }
+    pool = wv_pool_push();
+    no = objc_msgSend((id)objc_getClass("NSNumber"),
+                      wv_sel("numberWithBool:"), (BOOL)(a >= 128 ? 1 : 0));
+    objc_msgSend(w->view, wv_sel("setValue:forKey:"), no,
+                 wv_nsstr("drawsBackground"));
+    wv_pool_pop(pool);
+    return 1;
+}
+
+int alya_webview_set_context_menu(alya_webview_t *w, int enabled) {
+    if (w == NULL || w->view == NULL) {
+        return 0;
+    }
+    w->allow_menu = enabled ? 1 : 0;
+    wv_refresh_scripts(w);
+    return 1;
+}
+
+int alya_webview_set_shortcut_block(alya_webview_t *w, int enabled) {
+    if (w == NULL || w->view == NULL) {
+        return 0;
+    }
+    w->block_keys = enabled ? 1 : 0;
+    wv_refresh_scripts(w);
+    return 1;
+}
+
+int alya_webview_set_images(alya_webview_t *w, int enabled) {
+    // No per-page image toggle in WKPreferences; report unsupported.
+    (void)w;
+    (void)enabled;
+    return 0;
+}
+
+int alya_webview_set_webgl(alya_webview_t *w, int enabled) {
+    (void)w;
+    (void)enabled;
+    return 0;
+}
+
+int alya_webview_set_charset(alya_webview_t *w, const char *cs) {
+    (void)w;
+    (void)cs;
+    return 0;
 }
 
 int alya_webview_poll(alya_webview_t *w) {
