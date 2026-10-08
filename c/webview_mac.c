@@ -3,8 +3,8 @@
 // Pure C over the Objective-C runtime C API (same technique as the gui
 // package's cocoa_window.c): no ObjC syntax, so this file needs no special
 // compiler mode and links only against system frameworks (Cocoa + WebKit).
-// The JS completion handler is a malloc'd stack-block literal; it frees
-// itself when it fires (or on timeout bookkeeping in eval_state).
+// The JS completion handler is a stack-block literal; WebKit copies it
+// on dispatch and releases it when the callback completes.
 //
 // Threading: all WebKit work happens on the calling (main) thread while
 // poll() spins the runloop non-blocking. No worker threads are created.
@@ -37,7 +37,7 @@ extern BOOL class_addIvar(Class cls, const char *name, size_t size,
 extern Ivar class_getInstanceVariable(Class cls, const char *name);
 extern id object_setIvar(id obj, Ivar ivar, id value);
 extern id object_getIvar(id obj, Ivar ivar);
-extern void *_NSConcreteStackBlock;
+extern void *_NSConcreteStackBlock[32];
 #if defined(__x86_64__)
 extern double objc_msgSend_fpret(id self, SEL op, ...);
 extern void objc_msgSend_stret(void *st, id self, SEL op, ...);
@@ -368,7 +368,7 @@ static Class wv_delegate_class(void) {
     return cls;
 }
 
-/* --- JS completion block (malloc'd, frees itself when it fires) --- */
+/* --- JS completion block (stack literal; WebKit copies to heap and releases) --- */
 
 typedef struct wv_blk_desc {
     unsigned long reserved;
@@ -387,8 +387,9 @@ typedef struct wv_block {
 static wv_blk_desc_t wv_blk_desc = {0, sizeof(wv_block_t)};
 
 static void wv_js_invoke(void *blk, id result, id error) {
+    id pool = wv_pool_push();
     wv_block_t *b = (wv_block_t *)blk;
-    alya_webview_t *w = b->w;
+    alya_webview_t *w = (b != NULL) ? b->w : NULL;
     if (w != NULL) {
         if (error == NULL && result != NULL) {
             id desc = wv_send0(id, result, wv_sel("description"));
@@ -401,11 +402,11 @@ static void wv_js_invoke(void *blk, id result, id error) {
         }
         w->eval_pending = 0;
     }
-    free(b);
+    wv_pool_pop(pool);
 }
 
 static int wv_fire_js(alya_webview_t *w, const char *js) {
-    wv_block_t *b;
+    wv_block_t b;
     id code;
     if (w == NULL || w->view == NULL) {
         return 0;
@@ -413,22 +414,19 @@ static int wv_fire_js(alya_webview_t *w, const char *js) {
     if (js == NULL || js[0] == '\0') {
         return 0;
     }
-    b = (wv_block_t *)malloc(sizeof(*b));
-    if (b == NULL) {
-        return 0;
-    }
-    b->isa = _NSConcreteStackBlock;
-    b->flags = 0;
-    b->reserved = 0;
-    b->invoke = wv_js_invoke;
-    b->desc = &wv_blk_desc;
-    b->w = w;
+    memset(&b, 0, sizeof(b));
+    b.isa = _NSConcreteStackBlock;
+    b.flags = 0;
+    b.reserved = 0;
+    b.invoke = wv_js_invoke;
+    b.desc = &wv_blk_desc;
+    b.w = w;
     code = wv_nsstr(js);
     w->eval_state = ALYA_WEBVIEW_EVAL_PENDING;
     w->eval_result[0] = '\0';
     w->eval_pending = 1;
     wv_send2(void, w->view, wv_sel("evaluateJavaScript:completionHandler:"),
-             code, (id)b);
+             code, (id)&b);
     return 1;
 }
 
