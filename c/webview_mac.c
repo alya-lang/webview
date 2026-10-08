@@ -38,10 +38,18 @@ extern Ivar class_getInstanceVariable(Class cls, const char *name);
 extern id object_setIvar(id obj, Ivar ivar, id value);
 extern id object_getIvar(id obj, Ivar ivar);
 extern void *_NSConcreteStackBlock;
+#if defined(__x86_64__)
 extern double objc_msgSend_fpret(id self, SEL op, ...);
-#if defined(__x86_64__) || defined(__aarch64__)
 extern void objc_msgSend_stret(void *st, id self, SEL op, ...);
 #endif
+
+static double wv_msg_send_double(id target, SEL op) {
+#if defined(__x86_64__)
+    return objc_msgSend_fpret(target, op);
+#else
+    return ((double (*)(id, SEL))objc_msgSend)(target, op);
+#endif
+}
 
 typedef struct NSRect {
     double x;
@@ -1239,7 +1247,7 @@ static double wv_uptime(void) {
     if (pi == NULL) {
         return 0.0;
     }
-    return objc_msgSend_fpret(pi, wv_sel("systemUptime"));
+    return wv_msg_send_double(pi, wv_sel("systemUptime"));
 }
 
 static long wv_window_number(alya_webview_t *w) {
@@ -1468,7 +1476,7 @@ double alya_webview_get_zoom(alya_webview_t *w) {
         return 0.0;
     }
     pool = wv_pool_push();
-    z = objc_msgSend_fpret(w->view, wv_sel("magnification"));
+    z = wv_msg_send_double(w->view, wv_sel("magnification"));
     wv_pool_pop(pool);
     return z;
 }
@@ -1690,8 +1698,10 @@ static double wv_screen_h(void) {
     if (screen == NULL) {
         return 800.0;
     }
-#if defined(__x86_64__) || defined(__aarch64__)
+#if defined(__x86_64__)
     objc_msgSend_stret(&fr, screen, wv_sel("frame"));
+#elif defined(__aarch64__) || defined(__arm64__)
+    fr = ((NSRect (*)(id, SEL))objc_msgSend)(screen, wv_sel("frame"));
 #else
     fr.h = 800.0;
 #endif
