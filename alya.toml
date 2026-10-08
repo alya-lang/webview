@@ -8,32 +8,20 @@ authors = ["Alya Language Contributors <https://github.com/alya-lang>"]
 license = "MIT"
 homepage = "https://github.com/alya-lang/alya"
 repository = "https://github.com/alya-lang/webview"
-keywords = ["alya", "alya-lang", "package", "webview", "c", "ffi"]
+keywords = ["alya", "alya-lang", "package", "webview", "browser", "c", "ffi"]
 
 [dependencies]
 # Optional dependencies install only when an active feature names them:
 # extra = { git = "https://github.com/alya-lang/extra", tag = "v0.1.0", optional = true }
-
-# Optional: feature-gated API slices. Members name another feature or an
-# optional dependency; gate the using code with `@cfg(feature = "...")`
-# and provide a `@cfg(not(feature = "..."))` fallback stub (see
-# `src/lib.alya` and `src/core/extras.alya`). `default` is active unless
-# the caller passes `--no-default-features`; select features explicitly
-# via `alya build/run/test/bench/install --features <a,b>`.
-[features]
-default = ["extras"]
-extras = []
-# extra = ["extra"]
 
 [build]
 c-sources = ["c/webview.c"]
 c-sources-windows = ["c/webview_win.c"]
 c-sources-macos = ["c/webview_mac.c"]
 c-sources-linux = ["c/webview_linux.c"]
-# Real backends will need (added with the native calls, not the stubs):
-# c-link-flags-windows = ["-lwebview2loader"]
-# c-link-flags-macos = ["-framework", "Cocoa", "-framework", "WebKit"]
-# c-link-flags-linux = ["-lwebkit2gtk-4.1", "-lgtk-3"]
+c-link-flags-windows = ["-lole32", "-luser32", "-lgdi32", "-lshell32"]
+c-link-flags-macos = ["-framework", "Cocoa", "-framework", "WebKit"]
+c-link-flags-linux = ["-ldl"]
 c-flags = ["-O2"]
 c-include-dirs = ["c"]
 links = "webview"

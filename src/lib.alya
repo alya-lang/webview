@@ -1,210 +1,195 @@
 ## webview Library Facade
 ##
 ## Part of the Alya Language package ecosystem (https://github.com/alya-lang).
-## Serves as the primary public entry point and facade for the webview package,
-## exposing models, enums, constructors, interfaces, and processing workflows.
+## Primary entry point for cross-platform system webview bindings
+## (WebView2 on Windows, WKWebView on macOS, WebKitGTK on Linux).
+## All handles are opaque pointers; async browser work arrives through
+## `drain` as `WebviewEvent` records. Every function is null-safe, so
+## headless environments degrade to empty results instead of errors.
 
 import "./types.alya"
-import "./core/formatter.alya"
-@cfg(feature = "extras")
-import "./core/extras.alya"
-
-# ───────────────────────────────────────────────────────────────
-# Primary Facade APIs
-# ───────────────────────────────────────────────────────────────
-
-## Formats and returns a greeting message for the specified recipient.
-##
-## Defaults to `"World"` if the name parameter is omitted, empty, or null.
-##
-## ### Parameters
-## - `name`: The name of the recipient to greet. Defaults to `"World"`.
-##
-## ### Returns
-## A formatted greeting string, e.g. `"Hello, World!"`.
-##
-## ### Examples
-## ```alya
-## let msg = hello("Alya")
-## say msg # "Hello, Alya!"
-## ```
-pub function hello(name = "World") -> string
-    let clean = sanitize_name(name)
-    return core_format_greeting(clean)
-end
-
-## Constructs a new configuration model instance with specified or default values.
-##
-## ### Parameters
-## - `name`: Target recipient or entity name. Defaults to `"World"`.
-## - `count`: Number of iterations or repetition limit. Defaults to `1`.
-## - `priority`: Operational priority level (`WebviewPriority`). Defaults to `WebviewPriority.Normal`.
-## - `style`: Formality style variant code (`WebviewStyle`). Defaults to `WebviewStyle.Standard`.
-##
-## ### Returns
-## A newly initialized `WebviewConfig` instance.
-##
-## ### Examples
-## ```alya
-## let cfg = new_config("Community", 5, WebviewPriority.High, WebviewStyle.Formal)
-## ```
-pub function new_config(name = "World", count: int = 1, priority: int = WebviewPriority.Normal, style: int = WebviewStyle.Standard) -> WebviewConfig
-    return make_config(name, count, priority, style)
-end
-
-## Processes a configuration label through the formatting pipeline, returning a `WebviewResult`.
-##
-## ### Parameters
-## - `label`: The target entity label string. Defaults to `"World"`.
-## - `count`: Counter or repetition count. Defaults to `1`.
-## - `priority`: Priority tier. Defaults to `WebviewPriority.Normal`.
-##
-## ### Returns
-## A successful `WebviewResult` containing the formatted summary string.
-##
-## ### Examples
-## ```alya
-## let res = process("Alice", 3, WebviewPriority.High)
-## say res.message # "OK"
-## ```
-pub function process(label = "World", count: int = 1, priority: int = WebviewPriority.Normal) -> WebviewResult
-    let cfg = make_config(label, count, priority)
-    let formatted = format_config(cfg)
-    return ok_result(formatted, "OK")
-end
-
-## Processes an array of labels in batch, returning an array of formatted strings.
-##
-## Handles null input safely by returning an empty array.
-##
-## ### Parameters
-## - `labels`: Array of label strings to process (or null).
-##
-## ### Returns
-## An array of formatted result strings.
-##
-## ### Examples
-## ```alya
-## let results = process_batch(["Alpha", "Beta"])
-## ```
-pub function process_batch(labels) -> array
-    if labels is null
-        return []
-    end
-
-    let configs = []
-    for lbl in labels
-        configs.push(make_config(lbl, 1, WebviewPriority.Normal))
-    end
-    return format_batch(configs)
-end
-
-## Formats and returns the summary representation of a configuration.
-##
-## Demonstrates struct method dispatch and interface satisfaction (`Summarizable`).
-##
-## ### Parameters
-## - `cfg`: A `WebviewConfig` instance.
-##
-## ### Returns
-## The string returned by the config's `summary()` method.
-##
-## ### Examples
-## ```alya
-## let cfg = new_config("Community", 3)
-## say format_summary(cfg)
-## ```
-pub function format_summary(cfg: WebviewConfig) -> string
-    return cfg.summary()
-end
-
-## Formats and returns the description of a configuration.
-##
-## Demonstrates struct method dispatch and interface satisfaction (`Describable`).
-##
-## ### Parameters
-## - `cfg`: A `WebviewConfig` instance.
-##
-## ### Returns
-## The string returned by `describe()`.
-##
-## ### Examples
-## ```alya
-## let cfg = new_config("Project", 1)
-## say format_description(cfg)
-## ```
-pub function format_description(cfg: WebviewConfig) -> string
-    return cfg.describe()
-end
-
-## Clamps an integer to the closed interval `[min_val, max_val]`.
-##
-## ### Parameters
-## - `n`: Value to clamp.
-## - `min_val`: Lower bound.
-## - `max_val`: Upper bound.
-##
-## ### Returns
-## Clamped integer within the specified range.
-pub function clamp(n: int, min_val: int, max_val: int) -> int
-    return clamp_count(n, min_val, max_val)
-end
-
-## Returns singular or plural form based on item count.
-##
-## ### Parameters
-## - `n`: The item count.
-## - `singular`: Word form for count == 1.
-## - `plural`: Word form for counts != 1.
-##
-## ### Returns
-## The selected string based on `n`.
-pub function pluralize(n: int, singular: string, plural: string) -> string
-    return when n
-        is 1 => singular
-        else => plural
-    end
-end
-
-## Returns an array repeating the given string `count` times.
-##
-## ### Parameters
-## - `label`: String to repeat.
-## - `count`: Number of occurrences.
-##
-## ### Returns
-## Array of repeated strings.
-pub function repeat_string(label: string, count: int) -> array
-    return repeat_label(label, count)
-end
-
-# ───────────────────────────────────────────────────────────────
-# Feature-Gated API Fallback Stubs
-# ───────────────────────────────────────────────────────────────
-
-# The slim-view stub below keeps the public API surface stable when the
-# `extras` feature is disabled, so callers get a clear descriptive error
-# instead of an undefined reference (param unused by design).
-# alya-lint: disable unused-param
-## Fallback stub for `extra_greeting` when the `extras` feature is disabled.
-##
-## Rebuild with default features (or `--features extras`) for the full
-## implementation in `src/core/extras.alya`.
-@cfg(not(feature = "extras"))
-pub function extra_greeting(name = "World") -> string
-    throw "extras feature is disabled (rebuild with default features or --features extras)"
-end
-# alya-lint: enable unused-param
-
+import "./core/events.alya"
+import "./native/browser.alya"
 import "./ffi.alya"
 
-## Native C FFI helper function
-pub function c_add(a: int = 0, b: int = 0) -> int
-    return alya_webview_add(a, b)
+## Returns the compiled backend id (`1` Windows, `2` macOS, `3` Linux).
+pub function backend_id() -> int
+    return native_backend_id()
 end
 
-## Returns the compiled native backend id (`1` Windows/WebView2,
-## `2` macOS/WKWebView, `3` Linux/WebKitGTK).
-pub function backend_id() -> int
-    return alya_webview_backend_id()
+## Returns the compiled backend name (`"windows"`, `"macos"`, `"linux"`).
+pub function backend() -> string
+    return native_backend_name()
+end
+
+## Creates an empty browser event queue.
+pub function event_queue() -> WebviewEventQueue
+    return event_queue_new()
+end
+
+## Builds default engine settings (devtools off, JS on, default UA).
+pub function settings() -> WebviewSettings
+    return default_settings()
+end
+
+## Builds engine settings with explicit values.
+pub function settings_with(devtools: int = 0, js: int = 1, user_agent: string = "") -> WebviewSettings
+    return make_settings(devtools, js, user_agent)
+end
+
+## Opens a browser window; null when no display or engine is available.
+pub function open(title: string = "Alya", width: int = 800, height: int = 600)
+    return native_browser_open(title, width, height)
+end
+
+## Destroys a browser window handle (null-safe).
+pub function destroy(win) -> int
+    return native_browser_close_handle(win)
+end
+
+## Shows a browser window (null-safe).
+pub function show(win) -> int
+    return native_browser_show(win)
+end
+
+## Hides a browser window (null-safe).
+pub function hide(win) -> int
+    return native_browser_hide(win)
+end
+
+## Returns 1 while the window handle is open.
+pub function is_open(win) -> int
+    return native_browser_is_open(win)
+end
+
+## Returns 1 when the rendering engine is attached.
+pub function is_ready(win) -> int
+    return native_browser_is_ready(win)
+end
+
+## Requests a graceful close (null-safe).
+pub function request_close(win) -> int
+    return native_browser_request_close(win)
+end
+
+## Sets the window title (null-safe).
+pub function set_title(win, title: string) -> int
+    return native_browser_set_title(win, title)
+end
+
+## Resizes the window client area (null-safe).
+pub function resize(win, width: int, height: int) -> int
+    return native_browser_resize(win, width, height)
+end
+
+## Navigates to a URL; returns `1` when accepted.
+pub function navigate(win, url: string) -> int
+    return native_browser_navigate(win, url)
+end
+
+## Loads an HTML document string; returns `1` when accepted.
+pub function load_html(win, html: string) -> int
+    return native_browser_load_html(win, html)
+end
+
+## Reloads the current page; returns `1` when accepted.
+pub function reload(win) -> int
+    return native_browser_reload(win)
+end
+
+## Goes back in history; returns `1` when accepted.
+pub function back(win) -> int
+    return native_browser_back(win)
+end
+
+## Goes forward in history; returns `1` when accepted.
+pub function forward(win) -> int
+    return native_browser_forward(win)
+end
+
+## Returns 1 when back navigation is possible.
+pub function can_back(win) -> int
+    return native_browser_can_back(win)
+end
+
+## Returns 1 when forward navigation is possible.
+pub function can_forward(win) -> int
+    return native_browser_can_forward(win)
+end
+
+## Runs JS asynchronously; poll the result with `eval_state`/`eval_result`.
+## Returns `1` when the script was submitted.
+pub function eval(win, js: string) -> int
+    return native_browser_eval(win, js)
+end
+
+## Returns the pending eval state (`0` pending, `1` ready, `2` error).
+pub function eval_state(win) -> int
+    return native_browser_eval_state(win)
+end
+
+## Returns the last JS eval result (`""` when none).
+pub function eval_result(win) -> string
+    return native_browser_eval_result(win)
+end
+
+## Submits JS and waits up to `budget` pumps; `""` on error/timeout.
+pub function eval_wait(win, js: string, budget: int = 200) -> string
+    return native_browser_eval_wait(win, js, budget)
+end
+
+## Delivers a string to the page through `window.postMessage`.
+## Returns `1` when delivered.
+pub function post_message(win, json: string) -> int
+    return native_browser_post_message(win, json)
+end
+
+## Toggles developer tools; returns `1` when applied.
+pub function set_devtools(win, enabled: int) -> int
+    return native_browser_set_devtools(win, enabled)
+end
+
+## Toggles JavaScript; returns `1` when applied.
+pub function set_js(win, enabled: int) -> int
+    return native_browser_set_js(win, enabled)
+end
+
+## Overrides the user-agent string; returns `1` when applied.
+pub function set_user_agent(win, ua: string) -> int
+    return native_browser_set_user_agent(win, ua)
+end
+
+## Applies a `WebviewSettings` record; returns applied count.
+pub function apply_settings(win, s: WebviewSettings) -> int
+    return native_browser_apply_settings(win, s)
+end
+
+## Pumps once; returns the event kind (`0` = none).
+pub function poll(win) -> int
+    return native_browser_poll(win)
+end
+
+## Drains pending events into `q` as `WebviewEvent` records.
+pub function drain(win, q: WebviewEventQueue) -> int
+    return native_browser_drain(win, q)
+end
+
+## Last event: current URL (`""` when unknown).
+pub function last_url(win) -> string
+    return native_browser_last_url(win)
+end
+
+## Last event: document title (`""` when unknown).
+pub function last_title(win) -> string
+    return native_browser_last_title(win)
+end
+
+## Last `Message` event: payload text (`""` when none).
+pub function last_text(win) -> string
+    return native_browser_last_text(win)
+end
+
+## Native C FFI helper (bundled engine smoke test).
+pub function c_add(a: int = 0, b: int = 0) -> int
+    return alya_webview_add(a, b)
 end

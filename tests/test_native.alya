@@ -1,0 +1,123 @@
+## webview native tests: live window lifecycle + engine (when present)
+## Part of the Alya Language package ecosystem (https://github.com/alya-lang)
+##
+## Real OS windows: skipped (passing) on headless runners or machines
+## without a system web engine (no WebView2 Runtime / WebKitGTK).
+
+import "std/test"
+import "../src/lib.alya" as pkg
+
+function main()
+    test_suite("webview Native Browser Tests")
+    let r = runner_new()
+
+    # 1. Open (null = headless or no engine, skip passing)
+    let w = pkg::open("Alya CI Probe", 320, 200)
+    if w is null
+        runner_assert(r, 1 == 1, "no display/engine, skipped")
+        let done0 = runner_summary(r)
+        if done0 > 0
+            exit(1)
+        end
+        return
+    end
+    runner_assert_eq(r, pkg::is_open(w), true, "window open")
+
+    # 2. Show + pump (drains any initial noise)
+    runner_assert_eq(r, pkg::show(w), true, "show returns 1")
+    let i = 0
+    while i < 20
+        pkg::poll(w)
+        i += 1
+    end
+    runner_assert_eq(r, pkg::is_open(w), true, "still open")
+
+    # 3. Resize flows through a RESIZE event with the new size
+    runner_assert_eq(r, pkg::resize(w, 400, 300), true, "resize requested")
+    let rkind = 0
+    let rticks = 0
+    while rticks < 100
+        rkind = pkg::poll(w)
+        if rkind == 2
+            break
+        end
+        rticks += 1
+    end
+    runner_assert_eq(r, rkind, 2, "RESIZE event pumped")
+
+    # 3b. Drain maps native events to WebviewEvent records
+    runner_assert_eq(r, pkg::resize(w, 420, 320), true, "resize 2 requested")
+    let dq = pkg::event_queue()
+    let dfound = false
+    let dticks = 0
+    while dticks < 200
+        pkg::drain(w, dq)
+        while pkg::event_queue_len(dq) > 0
+            let dev = pkg::event_queue_poll(dq)
+            if dev.kind == 2 and dev.width == 420 and dev.height == 320
+                dfound = true
+            end
+        end
+        if dfound == true
+            break
+        end
+        dticks += 1
+    end
+    runner_assert_eq(r, dfound, true, "drain maps RESIZE with size")
+
+    # 3c. Title + settings are accepted on a live handle
+    runner_assert_eq(r, pkg::set_title(w, "Alya Probe 2"), true, "set_title ok")
+    runner_assert_eq(r, pkg::hide(w), true, "hide ok")
+    runner_assert_eq(r, pkg::show(w), true, "show again ok")
+    let applied = pkg::apply_settings(w, pkg::settings())
+    runner_assert_true(r, applied >= 0, "settings applied without error")
+
+    # 4. Engine work only when the engine attached (ready == 1)
+    if pkg::is_ready(w) == true
+        runner_assert_eq(r, pkg::load_html(w, "<html><head><title>Probe</title></head><body>hi</body></html>"), true, "load_html accepted")
+        # Out-of-process engines need wall-clock time: deadline-based wait.
+        let nk = 0
+        let start = clock_ms()
+        while clock_ms() - start < 20000
+            nk = pkg::poll(w)
+            if nk == 4
+                break
+            end
+            sleep(10)
+        end
+        runner_assert_eq(r, nk, 4, "NAV_DONE event pumped")
+        let js = pkg::eval_wait(w, "1+1", 800)
+        runner_assert_str_eq(r, js, "2", "JS eval returns JSON result")
+        runner_assert_eq(r, pkg::can_back(w), false, "fresh page cannot go back")
+        runner_assert_eq(r, pkg::post_message(w, "{\"ping\":1}"), true, "post_message delivered")
+    else
+        runner_assert(r, 1 == 1, "no engine attached, browsing skipped")
+        runner_assert_eq(r, pkg::navigate(w, "https://example.com"), false, "navigate without engine is 0")
+        runner_assert_eq(r, pkg::eval(w, "1"), false, "eval without engine is 0")
+    end
+
+    # 5. Graceful close -> CLOSE event -> not open
+    runner_assert_eq(r, pkg::request_close(w), true, "close requested")
+    let kind = 0
+    let ticks = 0
+    while ticks < 100
+        kind = pkg::poll(w)
+        if kind == 1
+            break
+        end
+        ticks += 1
+    end
+    runner_assert_eq(r, kind, 1, "CLOSE event pumped")
+    runner_assert_eq(r, pkg::is_open(w), false, "closed after event")
+
+    # 6. Null safety on a dead handle path
+    runner_assert_eq(r, pkg::destroy(null), true, "destroy null safe")
+    pkg::destroy(w)
+
+    let failed = runner_summary(r)
+    if failed > 0
+        exit(1)
+    end
+end
+
+main()

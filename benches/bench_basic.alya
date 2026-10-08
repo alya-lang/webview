@@ -1,5 +1,7 @@
 ## Benchmark suite for webview
 ## Part of the Alya Language package ecosystem (https://github.com/alya-lang)
+##
+## Pure-Alya micro-benchmarks only (no windows): safe on headless CI.
 
 import "std/test"
 import "../src/lib.alya" as pkg
@@ -7,71 +9,55 @@ import "../src/lib.alya" as pkg
 function main()
     let runner = bench_runner("webview Micro-Benchmarks")
 
-    # Bench 1: hello() facade function — 100k iterations
+    # Bench 1: settings factory — 100k iterations
     bench_start(runner, 100000)
     let i = 0
     while i < 100000
-        pkg::hello("Alya")
+        pkg::settings()
         i += 1
     end
-    bench_stop(runner, "hello() 100k calls")
+    bench_stop(runner, "settings() 100k calls")
 
-    # Bench 2: process() default call — 100k iterations
+    # Bench 2: event record + summary — 100k iterations
     bench_start(runner, 100000)
     let j = 0
     while j < 100000
-        pkg::process()
+        let ev = pkg::WebviewEvent { kind: 6, width: 800, height: 600, url: "about:blank", title: "t", text: "hi" }
+        ev.summary()
         j += 1
     end
-    bench_stop(runner, "process() default 100k calls")
+    bench_stop(runner, "event summary 100k calls")
 
-    # Bench 3: make_config + format_config — 50k iterations
+    # Bench 3: queue push/poll round-trip — 50k iterations
+    let q = pkg::event_queue()
     bench_start(runner, 50000)
     let k = 0
     while k < 50000
-        let cfg = pkg::new_config("bench", 1, pkg::WebviewPriority.High, pkg::WebviewStyle.Formal)
-        pkg::core_format_custom(cfg)
+        let ev = pkg::WebviewEvent { kind: 3, width: 1, height: 1, url: "u", title: "", text: "" }
+        pkg::event_queue_push(q, ev)
+        pkg::event_queue_poll(q)
         k += 1
     end
-    bench_stop(runner, "new_config + format_custom 50k calls")
+    bench_stop(runner, "queue round-trip 50k calls")
 
-    # Bench 4: process_batch with 10-element array — 10k iterations
-    let labels = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]
-    bench_start(runner, 10000)
+    # Bench 4: null-safe facade calls — 100k iterations
+    bench_start(runner, 100000)
     let m = 0
-    while m < 10000
-        pkg::process_batch(labels)
+    while m < 100000
+        pkg::poll(null)
+        pkg::is_open(null)
         m += 1
     end
-    bench_stop(runner, "process_batch 10-item list 10k calls")
+    bench_stop(runner, "null facade 100k calls")
 
-    # Bench 5: struct method cfg.summary() — 200k iterations
-    let summ_cfg = pkg::new_config("summary-bench", 5)
+    # Bench 5: backend probes — 200k iterations
     bench_start(runner, 200000)
     let s = 0
     while s < 200000
-        summ_cfg.summary()
+        pkg::backend_id()
         s += 1
     end
-    bench_stop(runner, "cfg.summary() 200k calls")
-
-    # Bench 6: clamp() utility — 500k iterations
-    bench_start(runner, 500000)
-    let c = 0
-    while c < 500000
-        pkg::clamp(c, 0, 100)
-        c += 1
-    end
-    bench_stop(runner, "clamp() utility 500k calls")
-
-    # Bench 7: repeat_string() utility — 10k iterations
-    bench_start(runner, 10000)
-    let r = 0
-    while r < 10000
-        pkg::repeat_string("bench", 10)
-        r += 1
-    end
-    bench_stop(runner, "repeat_string() 10k calls")
+    bench_stop(runner, "backend_id() 200k calls")
 
     bench_summary(runner)
 end

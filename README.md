@@ -11,15 +11,15 @@ Cross-platform system webview bindings for Alya: WebView2 on Windows, WKWebView 
 
 ## 🌟 Features
 
-- ⚡ **Lightweight & High Performance**: Minimal memory overhead, zero runtime bloat, and fast native execution
-- 🧩 **Modular Architecture**: Layered multi-module design featuring a clean public facade (`src/lib.alya`), rich data models (`src/types.alya`), and encapsulated core formatters (`src/core/formatter.alya`)
-- 🔒 **Public/Private Visibility (`pub`)**: Fine-grained export control with `pub` for public functions, structs, and enums, keeping internal helper functions private and encapsulated
-- 🎭 **Structural Duck Typing & Interfaces**: Dynamic interface dispatch (`Summarizable`, `Describable`) without brittle inheritance hierarchies
-- 📦 **Rich Domain Models & Enums**: Idiomatic `enum` types (`WebviewStatus`, `WebviewPriority`, `WebviewStyle`) and typed data containers (`WebviewConfig`, `WebviewResult`, `WebviewStats`)
-- 🎯 **Advanced Pattern Matching**: Clean branching with `when` expressions, range matching, and condition guards
-- 🛡️ **Defensive Result Pattern**: Structured error handling and outcome encapsulation with `ok_result` and `error_result`
-- 🧪 **Enterprise Test & Benchmark Suite**: 100% test coverage with standard assertions (`std/test`) and micro-benchmarking (`std/test` bench runner)
-- 🚩 **Feature-Gated API Slices**: Optional capability slices via `[features]` in `alya.toml` (`default = ["extras"]`) and `@cfg(feature = "extras")` gating with a `@cfg(not(feature = "extras"))` fallback stub (see `src/core/extras.alya`)
+- 🖥️ **System Engines, Zero Bundling**: WebView2 (Windows), WKWebView (macOS), WebKitGTK (Linux) — no Chromium download, no C++ toolchain, no SDK headers required
+- 🧩 **One C Contract, Three Backends**: `c/webview.h` is the single ABI; `c/webview_win.c`, `c/webview_mac.c`, `c/webview_linux.c` implement it (pure C, runtime loader/engine probing via `LoadLibrary` / `dlopen`)
+- 🔌 **FFI Without Callbacks**: async browser work (navigation, JS eval, page messages) arrives through `drain()` as `WebviewEvent` records — no C-to-Alya closures needed
+- 🛡️ **Null-Safe & Headless-Clean**: every function tolerates null handles; `open()` returns null without a display or engine, so CI stays green on all 6 targets
+- ⚙️ **Engine Settings**: devtools toggle, JavaScript toggle, custom user-agent, `window.postMessage` delivery both directions
+- 📦 **No Link-Time Surprises**: Windows links only system DLLs (`ole32`, `user32`, `gdi32`, `shell32`); macOS links system frameworks; Linux links only `libdl`
+
+> [!NOTE]
+> **Platform requirements:** Windows needs the evergreen WebView2 Runtime (preinstalled with Edge); macOS ships WKWebView; Linux needs `libwebkit2gtk-4.1` (or `4.0`) plus a display. Without them, browsing calls report "not ready" instead of failing.
 
 ---
 
@@ -31,25 +31,32 @@ webview/
 ├── .editorconfig           # Uniform formatting rules across IDEs and editors
 ├── .gitignore              # Ecosystem standard ignore filters
 ├── .vscode/                # VS Code workspace settings, DAP launch configurations & tasks
-├── alya.toml               # Package manifest with dependencies, [features] and optional [build]
-├── c/                      # (Optional) Native C sources for zero-dependency FFI packages
+├── alya.toml               # Package manifest with per-OS [build] sources and link flags
+├── c/                      # Native backends (zero-dependency FFI)
+│   ├── webview.h           # Single shared ABI contract (all backends implement it)
+│   ├── webview.c           # Engine-independent helpers (link smoke test)
+│   ├── webview_win.c       # Windows: WebView2 via manual COM vtables + runtime loader
+│   ├── webview_mac.c       # macOS: WKWebView via ObjC runtime C API (no ObjC syntax)
+│   └── webview_linux.c     # Linux: WebKitGTK 4.1/4.0 via dlopen (no headers needed)
 ├── src/
-│   ├── lib.alya            # Public API facade (pub exports, re-exports & pipeline runners)
-│   ├── types.alya          # Data models, pub enums, pub structs, and struct methods
-│   ├── ffi.alya            # (Optional) Native extern "C" declarations
-│   └── core/               # Subdirectory module hierarchy
-│       ├── formatter.alya  # Domain formatting routines, salutation builders & pattern matchers
-│       └── extras.alya     # Feature-gated (`extras`) optional API slice with `@cfg` gating
+│   ├── lib.alya            # Public API facade (open, navigate, eval, drain, settings)
+│   ├── types.alya          # WebviewEventKind, WebviewEvalState, WebviewEvent, WebviewSettings
+│   ├── ffi.alya            # Bundled-C smoke-test declarations
+│   ├── core/
+│   │   └── events.alya     # FIFO WebviewEventQueue (push/peek/poll/clear)
+│   └── native/
+│       └── browser.alya    # Null-safe extern "C" bindings + drain/eval_wait helpers
 ├── examples/
-│   └── demo.alya           # Comprehensive runnable walkthrough of all package capabilities
+│   └── demo.alya           # Headless-safe showcase (skips live window without display)
 ├── tests/
-│   └── test_basic.alya     # Automated test suite with 100% feature coverage
+│   ├── test_basic.alya     # Pure logic: types, queue, settings, null-safety, FFI smoke
+│   └── test_native.alya    # Live window: resize/nav/eval/close (skips headless)
 └── benches/
-    └── bench_basic.alya    # Micro-benchmarks measuring performance and throughput
+    └── bench_basic.alya    # Micro-benchmarks (pure Alya, no windows)
 ```
 
 > [!NOTE]
-> **Visibility & Modularity:** Symbols annotated with `pub` (`pub function`, `pub struct`, `pub enum`, `pub interface`) are exported to external consumers and re-exporting modules. Symbols without `pub` remain strictly internal to their declaring module, preventing symbol collisions and implementation leakage.
+> **Visibility & Modularity:** Symbols annotated with `pub` (`pub function`, `pub struct`, `pub enum`) are exported to external consumers and re-exporting modules. Symbols without `pub` remain strictly internal to their declaring module, preventing symbol collisions and implementation leakage.
 
 ---
 
@@ -77,18 +84,38 @@ alya install
 import "webview" as pkg
 
 function main()
-    # 1. Basic facade call with default parameter
-    let greeting = pkg::hello()
-    say f"Greeting:  {greeting}"
+    say "Backend: " + pkg::backend()
 
-    # 2. Struct configuration with priority, style, and methods
-    let cfg = pkg::new_config("Community", 5, pkg::WebviewPriority.High, pkg::WebviewStyle.Formal)
-    say f"Summary:   {cfg.summary()}"
-    say f"Formatted: {pkg::core_format_custom(cfg)}"
+    # Headless-safe: null when no display or engine is present.
+    let w = pkg::open("Hello webview", 1024, 768)
+    if w is null
+        say "No display or engine — live view skipped."
+        return
+    end
 
-    # 3. Processing pipeline returning Result model
-    let res = pkg::process("Analytics", 3, pkg::WebviewPriority.Critical)
-    say f"Outcome:   {res.message}"
+    pkg::apply_settings(w, pkg::settings())
+    pkg::load_html(w, "<html><body><h1>Hello from Alya</h1></body></html>")
+
+    # Wait for the page, then run JavaScript (JSON-encoded result).
+    let t0 = clock_ms()
+    while clock_ms() - t0 < 20000
+        if pkg::poll(w) == pkg::WebviewEventKind.NavDone
+            break
+        end
+        sleep(10)
+    end
+    say "JS says: " + pkg::eval_wait(w, "40+2", 800)
+
+    # Drain remaining events as structured records.
+    let q = pkg::event_queue()
+    pkg::drain(w, q)
+    while pkg::event_queue_len(q) > 0
+        let ev = pkg::event_queue_poll(q)
+        say ev.summary()
+    end
+
+    pkg::request_close(w)
+    pkg::destroy(w)
 end
 
 main()
@@ -100,45 +127,51 @@ main()
 
 | Symbol | Visibility | Description |
 |---|---|---|
-| `hello(name = "World")` | `pub function` | Returns a formatted greeting string. Defaults to `"World"` if null or empty. |
-| `new_config(name, count, priority, style)` | `pub function` | Factory constructing a `WebviewConfig` with sensible defaults. |
-| `make_config(name, count, priority, style, enabled, tags)` | `pub function` | Full constructor for `WebviewConfig`. |
-| `process(label, count, priority)` | `pub function` | Runs processing pipeline, returning an `ok_result` `WebviewResult`. |
-| `process_batch(labels)` | `pub function` | Formats an array of labels in batch, returning an array of strings. |
-| `ok_result(value, message)` | `pub function` | Constructs a successful `WebviewResult` container (`status = 0`). |
-| `error_result(message, errors)` | `pub function` | Constructs a failed `WebviewResult` container (`status = 1`). |
-| `make_stats(total, passed, failed, skipped)` | `pub function` | Constructs a `WebviewStats` metrics record. |
-| `format_summary(cfg)` | `pub function` | Formats summary of a config instance (satisfies `Summarizable`). |
-| `format_description(cfg)` | `pub function` | Formats description of a config instance (satisfies `Describable`). |
-| `format_config(config)` | `pub function` | Multi-field formatter producing descriptive overview of a `WebviewConfig`. |
-| `format_result(result)` | `pub function` | Formats a `WebviewResult` into `[OK]` or `[ERROR]` status line. |
-| `format_stats(stats)` | `pub function` | Formats total checked items and success rate percentage. |
-| `clamp(n, min_val, max_val)` | `pub function` | Clamps an integer value to the closed range `[min_val, max_val]`. |
-| `pluralize(n, singular, plural)` | `pub function` | Pattern-matches count to return singular or plural noun form. |
-| `repeat_string(label, count)` | `pub function` | Repeats a string into an array of `count` items. |
-| `extra_greeting(name = "World")` | `pub function` (`extras` feature, default-on) | Enthusiastic greeting slice gated by `@cfg(feature = "extras")`; stub throws a descriptive error when the feature is off. |
-| `Summarizable` | `pub interface` | Structural contract requiring `summary(self) -> string`. |
-| `Describable` | `pub interface` | Structural contract requiring `describe(self) -> string` and `is_valid(self) -> int`. |
-| `WebviewStatus` | `pub enum` | Lifecycle status codes (`Pending = 0`, `Active = 1`, `Archived = 2`, `Error = 3`). |
-| `WebviewPriority` | `pub enum` | Priority tiers (`Low = 0`, `Normal = 1`, `High = 2`, `Critical = 3`). |
-| `WebviewStyle` | `pub enum` | Presentation styles (`Standard = 0`, `Formal = 1`, `Casual = 2`). |
-| `WebviewConfig` | `pub struct` | Primary configuration model (`name`, `count`, `priority`, `style`, `enabled`, `tags`). |
-| `WebviewConfig.summary()` | `pub method` | Single-line formatted summary (satisfies `Summarizable`). |
-| `WebviewConfig.describe()` | `pub method` | Detailed multi-field description (satisfies `Describable`). |
-| `WebviewConfig.is_valid()` | `pub method` | Validation guard returning 1 if valid, 0 otherwise. |
-| `WebviewConfig.is_enabled()` | `pub method` | Returns 1 if active, 0 if disabled. |
-| `WebviewConfig.with_name(new_name)` | `pub method` | Immutable copy with updated name. |
-| `WebviewConfig.with_priority(new_prio)` | `pub method` | Immutable copy with updated priority tier. |
-| `WebviewResult` | `pub struct` | Operation outcome model (`value`, `status`, `message`, `errors`). |
-| `WebviewResult.is_ok()` | `pub method` | Returns 1 if successful (`status == 0`), 0 otherwise. |
-| `WebviewResult.is_error()` | `pub method` | Returns 1 if error (`status != 0`), 0 otherwise. |
-| `WebviewResult.unwrap_or(fallback)` | `pub method` | Returns message on success, or fallback on error. |
-| `WebviewStats` | `pub struct` | Run statistics model (`total`, `passed`, `failed`, `skipped`). |
-| `WebviewStats.total_checked()` | `pub method` | Sum of passed and failed items count. |
-| `WebviewStats.success_rate()` | `pub method` | Computed percentage string (e.g. `"95%"`). |
+| `backend()` | `pub function` | Returns `"windows"`, `"macos"`, or `"linux"` for the compiled target. |
+| `backend_id()` | `pub function` | Returns `1` (Windows), `2` (macOS), or `3` (Linux). |
+| `open(title, width, height)` | `pub function` | Opens a browser window; null without display or engine. |
+| `destroy(win)` | `pub function` | Destroys a handle (null-safe, always `1`). |
+| `show(win)` / `hide(win)` | `pub function` | Shows or hides a window (null-safe). |
+| `is_open(win)` | `pub function` | Returns `1` while the handle is open. |
+| `is_ready(win)` | `pub function` | Returns `1` when the engine is attached (browsing works). |
+| `request_close(win)` | `pub function` | Requests graceful close, queues a `Close` event (null-safe). |
+| `set_title(win, title)` | `pub function` | Sets the window title (null-safe). |
+| `resize(win, width, height)` | `pub function` | Resizes the client area, queues a `Resize` event (null-safe). |
+| `navigate(win, url)` | `pub function` | Navigates to a URL; `1` when accepted. |
+| `load_html(win, html)` | `pub function` | Loads an HTML document string; `1` when accepted. |
+| `reload(win)` | `pub function` | Reloads the current page; `1` when accepted. |
+| `back(win)` / `forward(win)` | `pub function` | History traversal; `1` when accepted. |
+| `can_back(win)` / `can_forward(win)` | `pub function` | Returns `1` when history traversal is possible. |
+| `eval(win, js)` | `pub function` | Submits JS asynchronously; `1` when submitted. |
+| `eval_state(win)` | `pub function` | `0` pending, `1` ready, `2` error (`2` for null). |
+| `eval_result(win)` | `pub function` | Last JSON-encoded JS result (`""` when none). |
+| `eval_wait(win, js, budget)` | `pub function` | Submits JS and waits up to `budget` pumps; `""` on timeout. |
+| `post_message(win, json)` | `pub function` | Delivers a string via `window.postMessage`; `1` when delivered. |
+| `set_devtools(win, enabled)` | `pub function` | Toggles developer tools; `1` when applied. |
+| `set_js(win, enabled)` | `pub function` | Toggles JavaScript; `0` where the backend cannot toggle it. |
+| `set_user_agent(win, ua)` | `pub function` | Overrides the user-agent; `1` when applied. |
+| `apply_settings(win, s)` | `pub function` | Applies a `WebviewSettings` record; returns applied count. |
+| `settings()` | `pub function` | Default settings (devtools off, JS on, default UA). |
+| `settings_with(devtools, js, user_agent)` | `pub function` | Explicit settings constructor. |
+| `poll(win)` | `pub function` | Pumps once; returns the event kind (`0` = none). |
+| `drain(win, q)` | `pub function` | Drains pending events into `q` as `WebviewEvent` records. |
+| `event_queue()` | `pub function` | Creates an empty `WebviewEventQueue`. |
+| `last_url(win)` / `last_title(win)` / `last_text(win)` | `pub function` | Last URL, document title, message payload (`""` when unknown). |
+| `c_add(a, b)` | `pub function` | Bundled-C link smoke test (`10 + 32 == 42`). |
+| `WebviewEventKind` | `pub enum` | `None = 0`, `Close = 1`, `Resize = 2`, `NavStart = 3`, `NavDone = 4`, `Title = 5`, `Message = 6`. |
+| `WebviewEvalState` | `pub enum` | `Pending = 0`, `Ready = 1`, `Error = 2`. |
+| `WebviewEvent` | `pub struct` | Drained event (`kind`, `width`, `height`, `url`, `title`, `text`) with `is_close()`, `is_message()`, `summary()`. |
+| `WebviewSettings` | `pub struct` | Engine settings (`devtools`, `js`, `user_agent`). |
+| `WebviewEventQueue` | `pub struct` | FIFO queue with `event_queue_push/peek/poll/len/is_empty/clear`. |
+
+### 🔭 Roadmap (v1.1)
+
+- Re-verify the remaining WebView2 vtable slots against real SDK headers (script toggle, user-agent via `Settings2`).
+- Drive-by verification of the macOS (`WKWebView`) and Linux (`WebKitGTK`) backends on native runners.
+- Page-side JS bridge helper (unified `window.alya` inbox on top of the platform channels).
 
 > [!TIP]
-> **Internal Helpers & Documentation:** Public symbols are documented with `##` Markdown docstrings, enabling automatic API documentation generation via `alya doc`. Private functions such as `build_salutation` and `build_priority_label` in `src/core/formatter.alya` are not annotated with `pub` and remain encapsulated within their respective modules.
+> **Internal Helpers & Documentation:** Public symbols are documented with `##` Markdown docstrings, enabling automatic API documentation generation via `alya doc`. Raw `extern "C"` declarations in `src/native/browser.alya` stay private behind null-safe wrappers.
 
 ---
 
@@ -148,13 +181,6 @@ Run the automated test suite using `alya test`:
 
 ```bash
 alya test
-```
-
-Exercise feature selection (the `extras` slice is default-on):
-
-```bash
-alya test --features extras
-alya test --no-default-features
 ```
 
 Generate static API documentation:

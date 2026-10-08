@@ -1,0 +1,393 @@
+## webview/native/browser — native browser FFI (all backends)
+##
+## Part of the Alya Language package ecosystem (https://github.com/alya-lang).
+## Thin null-safe bindings over the per-OS C backends (`c/webview_win.c`,
+## `c/webview_mac.c`, `c/webview_linux.c` share the `c/webview.h`
+## contract). Window handles are opaque pointers; async browser work
+## (navigation, JS eval, messages) arrives through `browser_drain` as
+## `WebviewEvent` records, so no C-to-Alya callbacks are needed.
+
+import "../types.alya"
+import "../core/events.alya"
+
+extern "C" from "webview"
+    function alya_webview_backend_id() -> i32
+    function alya_webview_backend_name() -> str
+    function alya_webview_create(title: str, width: i32, height: i32) -> ptr
+    function alya_webview_destroy(w: ptr) -> void
+    function alya_webview_show(w: ptr) -> void
+    function alya_webview_hide(w: ptr) -> void
+    function alya_webview_is_open(w: ptr) -> i32
+    function alya_webview_is_ready(w: ptr) -> i32
+    function alya_webview_request_close(w: ptr) -> void
+    function alya_webview_set_title(w: ptr, title: str) -> void
+    function alya_webview_set_size(w: ptr, width: i32, height: i32) -> void
+    function alya_webview_navigate(w: ptr, url: str) -> i32
+    function alya_webview_load_html(w: ptr, html: str) -> i32
+    function alya_webview_reload(w: ptr) -> i32
+    function alya_webview_go_back(w: ptr) -> i32
+    function alya_webview_go_forward(w: ptr) -> i32
+    function alya_webview_can_back(w: ptr) -> i32
+    function alya_webview_can_forward(w: ptr) -> i32
+    function alya_webview_eval(w: ptr, js: str) -> i32
+    function alya_webview_eval_state(w: ptr) -> i32
+    function alya_webview_post_message(w: ptr, json: str) -> i32
+    function alya_webview_set_devtools(w: ptr, enabled: i32) -> i32
+    function alya_webview_set_js(w: ptr, enabled: i32) -> i32
+    function alya_webview_set_user_agent(w: ptr, ua: str) -> i32
+    function alya_webview_poll(w: ptr) -> i32
+    function alya_webview_event_width(w: ptr) -> i32
+    function alya_webview_event_height(w: ptr) -> i32
+    function alya_webview_event_url(w: ptr) -> str
+    function alya_webview_event_title(w: ptr) -> str
+    function alya_webview_event_text(w: ptr) -> str
+    function alya_webview_eval_result(w: ptr) -> str
+end
+
+## Returns the compiled backend id (`1` Windows, `2` macOS, `3` Linux).
+pub function native_backend_id() -> int
+    return alya_webview_backend_id()
+end
+
+## Returns the compiled backend name (`"windows"`, `"macos"`, `"linux"`).
+pub function native_backend_name() -> string
+    let n = alya_webview_backend_name()
+    if n is null
+        return "unknown"
+    end
+    return n
+end
+
+## Opens a browser window; null when no display or engine is available.
+pub function native_browser_open(title: string, width: int, height: int)
+    if title is null or title == ""
+        title = "Alya"
+    end
+    if width <= 0
+        width = 800
+    end
+    if height <= 0
+        height = 600
+    end
+    return alya_webview_create(title, width, height)
+end
+
+## Destroys a browser window handle (null-safe).
+pub function native_browser_close_handle(win) -> int
+    alya_webview_destroy(win)
+    return true
+end
+
+## Shows a browser window (null-safe).
+pub function native_browser_show(win) -> int
+    if win is null
+        return false
+    end
+    alya_webview_show(win)
+    return true
+end
+
+## Hides a browser window (null-safe).
+pub function native_browser_hide(win) -> int
+    if win is null
+        return false
+    end
+    alya_webview_hide(win)
+    return true
+end
+
+## Returns 1 while the window handle is open.
+pub function native_browser_is_open(win) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_is_open(win)
+end
+
+## Returns 1 when the rendering engine is attached (navigation works).
+pub function native_browser_is_ready(win) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_is_ready(win)
+end
+
+## Requests a graceful close (null-safe).
+pub function native_browser_request_close(win) -> int
+    if win is null
+        return false
+    end
+    alya_webview_request_close(win)
+    return true
+end
+
+## Sets the window title (null-safe).
+pub function native_browser_set_title(win, title: string) -> int
+    if win is null
+        return false
+    end
+    if title is null
+        title = ""
+    end
+    alya_webview_set_title(win, title)
+    return true
+end
+
+## Resizes the window client area (null-safe).
+pub function native_browser_resize(win, width: int, height: int) -> int
+    if win is null
+        return false
+    end
+    alya_webview_set_size(win, width, height)
+    return true
+end
+
+## Navigates to a URL; returns `1` when accepted.
+pub function native_browser_navigate(win, url: string) -> int
+    if win is null
+        return false
+    end
+    if url is null or url == ""
+        return false
+    end
+    return alya_webview_navigate(win, url)
+end
+
+## Loads an HTML document string; returns `1` when accepted.
+pub function native_browser_load_html(win, html: string) -> int
+    if win is null
+        return false
+    end
+    if html is null
+        html = ""
+    end
+    return alya_webview_load_html(win, html)
+end
+
+## Reloads the current page; returns `1` when accepted.
+pub function native_browser_reload(win) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_reload(win)
+end
+
+## Goes back in history; returns `1` when accepted.
+pub function native_browser_back(win) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_go_back(win)
+end
+
+## Goes forward in history; returns `1` when accepted.
+pub function native_browser_forward(win) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_go_forward(win)
+end
+
+## Returns 1 when back navigation is possible.
+pub function native_browser_can_back(win) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_can_back(win)
+end
+
+## Returns 1 when forward navigation is possible.
+pub function native_browser_can_forward(win) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_can_forward(win)
+end
+
+## Runs JS asynchronously; the JSON-encoded result is polled via
+## `native_browser_eval_state` / `native_browser_eval_result`.
+## Returns `1` when the script was submitted.
+pub function native_browser_eval(win, js: string) -> int
+    if win is null
+        return false
+    end
+    if js is null or js == ""
+        return false
+    end
+    return alya_webview_eval(win, js)
+end
+
+## Returns the pending eval state (`0` pending, `1` ready, `2` error).
+pub function native_browser_eval_state(win) -> int
+    if win is null
+        return WebviewEvalState.Error
+    end
+    return alya_webview_eval_state(win)
+end
+
+## Returns the last JS eval result (`""` when none).
+pub function native_browser_eval_result(win) -> string
+    if win is null
+        return ""
+    end
+    let r = alya_webview_eval_result(win)
+    if r is null
+        return ""
+    end
+    return r
+end
+
+## Delivers a string to the page through `window.postMessage`
+## (observed with `window.addEventListener("message")`).
+## Returns `1` when delivered.
+pub function native_browser_post_message(win, json: string) -> int
+    if win is null
+        return false
+    end
+    if json is null
+        json = "null"
+    end
+    return alya_webview_post_message(win, json)
+end
+
+## Toggles developer tools; returns `1` when applied.
+pub function native_browser_set_devtools(win, enabled: int) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_set_devtools(win, enabled)
+end
+
+## Toggles JavaScript; returns `1` when applied.
+pub function native_browser_set_js(win, enabled: int) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_set_js(win, enabled)
+end
+
+## Overrides the user-agent string; returns `1` when applied.
+pub function native_browser_set_user_agent(win, ua: string) -> int
+    if win is null
+        return false
+    end
+    if ua is null
+        ua = ""
+    end
+    return alya_webview_set_user_agent(win, ua)
+end
+
+## Applies a `WebviewSettings` record; returns applied count.
+pub function native_browser_apply_settings(win, s: WebviewSettings) -> int
+    if win is null or s is null
+        return 0
+    end
+    let n = 0
+    n += native_browser_set_devtools(win, s.devtools)
+    n += native_browser_set_js(win, s.js)
+    if s.user_agent != ""
+        n += native_browser_set_user_agent(win, s.user_agent)
+    end
+    return n
+end
+
+## Pumps once; returns the event kind (`0` = none, else `WebviewEventKind`).
+pub function native_browser_poll(win) -> int
+    if win is null
+        return WebviewEventKind.None
+    end
+    return alya_webview_poll(win)
+end
+
+## Last event: current URL (`""` when unknown).
+pub function native_browser_last_url(win) -> string
+    if win is null
+        return ""
+    end
+    let u = alya_webview_event_url(win)
+    if u is null
+        return ""
+    end
+    return u
+end
+
+## Last event: document title (`""` when unknown).
+pub function native_browser_last_title(win) -> string
+    if win is null
+        return ""
+    end
+    let t = alya_webview_event_title(win)
+    if t is null
+        return ""
+    end
+    return t
+end
+
+## Last `Message` event: payload text (`""` when none).
+pub function native_browser_last_text(win) -> string
+    if win is null
+        return ""
+    end
+    let t = alya_webview_event_text(win)
+    if t is null
+        return ""
+    end
+    return t
+end
+
+## Drains all pending native events into `q` as `WebviewEvent` records.
+## Returns the event count drained (`0` for null handles/queues).
+pub function native_browser_drain(win, q: WebviewEventQueue) -> int
+    if win is null or q is null
+        return 0
+    end
+    let n = 0
+    while n < 64
+        let kind = alya_webview_poll(win)
+        if kind == WebviewEventKind.None
+            break
+        end
+        let ev = WebviewEvent {
+            kind: kind,
+            width: alya_webview_event_width(win),
+            height: alya_webview_event_height(win),
+            url: native_browser_last_url(win),
+            title: native_browser_last_title(win),
+            text: native_browser_last_text(win)
+        }
+        event_queue_push(q, ev)
+        n += 1
+    end
+    return n
+end
+
+## Submits JS and waits up to `budget` pumps for the result.
+## Each pump yields ~10ms so out-of-process engines can answer.
+## Returns the JSON-encoded result, or `""` on error/timeout.
+pub function native_browser_eval_wait(win, js: string, budget: int = 200) -> string
+    if win is null
+        return ""
+    end
+    if js is null or js == ""
+        return ""
+    end
+    if budget <= 0
+        budget = 200
+    end
+    if native_browser_eval(win, js) == 0
+        return ""
+    end
+    let i = 0
+    while i < budget
+        native_browser_poll(win)
+        if native_browser_eval_state(win) == WebviewEvalState.Ready
+            return native_browser_eval_result(win)
+        end
+        if native_browser_eval_state(win) == WebviewEvalState.Error
+            return ""
+        end
+        sleep(10)
+        i += 1
+    end
+    return ""
+end

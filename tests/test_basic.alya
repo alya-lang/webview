@@ -1,179 +1,122 @@
-## Test suite for webview
+## webview basic tests: types, queue, settings, FFI smoke
 ## Part of the Alya Language package ecosystem (https://github.com/alya-lang)
+##
+## Pure-logic suite: runs identically on every OS without any display.
 
 import "std/test"
 import "../src/lib.alya" as pkg
 
 function main()
-    test_suite("webview Test Suite")
+    test_suite("webview Basic Tests")
     let r = runner_new()
 
     # ═══════════════════════════════════════════════════════════
-    # 1. Facade Greeting & Sanitization
+    # 1. Event kind values mirror c/webview.h
     # ═══════════════════════════════════════════════════════════
-    let res = pkg::hello("Alya")
-    runner_assert_str_eq(r, res, "Hello, Alya!", "pkg::hello returns formatted greeting")
+    runner_assert_eq(r, pkg::WebviewEventKind.None, 0, "None == 0")
+    runner_assert_eq(r, pkg::WebviewEventKind.Close, 1, "Close == 1")
+    runner_assert_eq(r, pkg::WebviewEventKind.Resize, 2, "Resize == 2")
+    runner_assert_eq(r, pkg::WebviewEventKind.NavStart, 3, "NavStart == 3")
+    runner_assert_eq(r, pkg::WebviewEventKind.NavDone, 4, "NavDone == 4")
+    runner_assert_eq(r, pkg::WebviewEventKind.Title, 5, "Title == 5")
+    runner_assert_eq(r, pkg::WebviewEventKind.Message, 6, "Message == 6")
 
-    let default_res = pkg::hello()
-    runner_assert_str_eq(r, default_res, "Hello, World!", "pkg::hello() defaults to World")
-
-    let null_res = pkg::hello(null)
-    runner_assert_str_eq(r, null_res, "Hello, World!", "pkg::hello(null) sanitizes null to World")
-
-    let empty_res = pkg::hello("")
-    runner_assert_str_eq(r, empty_res, "Hello, World!", "pkg::hello(\"\") sanitizes empty string to World")
-
-    # ═══════════════════════════════════════════════════════════
-    # 2. Enumeration Values
-    # ═══════════════════════════════════════════════════════════
-    runner_assert_eq(r, pkg::WebviewStatus.Pending, 0, "WebviewStatus.Pending == 0")
-    runner_assert_eq(r, pkg::WebviewStatus.Active, 1, "WebviewStatus.Active == 1")
-    runner_assert_eq(r, pkg::WebviewStatus.Archived, 2, "WebviewStatus.Archived == 2")
-    runner_assert_eq(r, pkg::WebviewStatus.Error, 3, "WebviewStatus.Error == 3")
-
-    runner_assert_eq(r, pkg::WebviewPriority.Low, 0, "WebviewPriority.Low == 0")
-    runner_assert_eq(r, pkg::WebviewPriority.Normal, 1, "WebviewPriority.Normal == 1")
-    runner_assert_eq(r, pkg::WebviewPriority.High, 2, "WebviewPriority.High == 2")
-    runner_assert_eq(r, pkg::WebviewPriority.Critical, 3, "WebviewPriority.Critical == 3")
-
-    runner_assert_eq(r, pkg::WebviewStyle.Standard, 0, "WebviewStyle.Standard == 0")
-    runner_assert_eq(r, pkg::WebviewStyle.Formal, 1, "WebviewStyle.Formal == 1")
-    runner_assert_eq(r, pkg::WebviewStyle.Casual, 2, "WebviewStyle.Casual == 2")
+    runner_assert_eq(r, pkg::WebviewEvalState.Pending, 0, "Pending == 0")
+    runner_assert_eq(r, pkg::WebviewEvalState.Ready, 1, "Ready == 1")
+    runner_assert_eq(r, pkg::WebviewEvalState.Error, 2, "Error == 2")
 
     # ═══════════════════════════════════════════════════════════
-    # 3. Struct Models & Factory Constructors
+    # 2. Settings factories
     # ═══════════════════════════════════════════════════════════
-    let cfg = pkg::new_config("Community", 5, pkg::WebviewPriority.High, pkg::WebviewStyle.Formal)
-    runner_assert_str_eq(r, cfg.name, "Community", "cfg.name is initialized correctly")
-    runner_assert_eq(r, cfg.count, 5, "cfg.count is initialized correctly")
-    runner_assert_eq(r, cfg.priority, 2, "cfg.priority is initialized to High (2)")
-    runner_assert_eq(r, cfg.style, 1, "cfg.style is initialized to Formal (1)")
-    runner_assert_eq(r, cfg.enabled, 1, "cfg.enabled defaults to 1")
+    let s = pkg::settings()
+    runner_assert_eq(r, s.devtools, 0, "default devtools off")
+    runner_assert_eq(r, s.js, 1, "default js on")
+    runner_assert_str_eq(r, s.user_agent, "", "default UA empty")
 
-    let full_cfg = pkg::make_config("Full", 10, pkg::WebviewPriority.Critical, pkg::WebviewStyle.Casual, 0, ["tag1", "tag2"])
-    runner_assert_str_eq(r, full_cfg.name, "Full", "full_cfg.name is correct")
-    runner_assert_eq(r, full_cfg.count, 10, "full_cfg.count is correct")
-    runner_assert_eq(r, full_cfg.priority, 3, "full_cfg.priority is Critical (3)")
-    runner_assert_eq(r, full_cfg.enabled, 0, "full_cfg.enabled is 0")
-    runner_assert_eq(r, len(full_cfg.tags), 2, "full_cfg.tags has 2 elements")
+    let custom = pkg::settings_with(1, 0, "Alya/1.0")
+    runner_assert_eq(r, custom.devtools, 1, "custom devtools on")
+    runner_assert_eq(r, custom.js, 0, "custom js off")
+    runner_assert_str_eq(r, custom.user_agent, "Alya/1.0", "custom UA kept")
 
     # ═══════════════════════════════════════════════════════════
-    # 4. Struct Methods & Immutability
+    # 3. Event records and methods
     # ═══════════════════════════════════════════════════════════
-    let summ = cfg.summary()
-    runner_assert_str_eq(r, summ, "Community (count: 5, active)", "cfg.summary() returns expected formatted summary")
+    let q = pkg::event_queue()
+    runner_assert_eq(r, pkg::drain(null, q), 0, "drain null win is 0")
+    runner_assert(r, pkg::poll(null) == 0, "poll null is None")
 
-    let desc = cfg.describe()
-    runner_assert_true(r, len(desc) > 0, "cfg.describe() returns non-empty description")
+    let cev = pkg::WebviewEvent { kind: 1, width: 800, height: 600, url: "about:blank", title: "t", text: "" }
+    runner_assert_eq(r, cev.is_close(), true, "Close event is_close")
+    runner_assert_eq(r, cev.is_message(), false, "Close event not message")
 
-    runner_assert_eq(r, cfg.is_valid(), true, "cfg.is_valid() returns 1 for valid configuration")
-    runner_assert_eq(r, cfg.is_enabled(), 1, "cfg.is_enabled() returns 1")
-
-    let updated_name_cfg = cfg.with_name("Contributors")
-    runner_assert_str_eq(r, updated_name_cfg.name, "Contributors", "with_name updates name")
-    runner_assert_str_eq(r, cfg.name, "Community", "original cfg.name remains immutable")
-
-    let updated_prio_cfg = cfg.with_priority(pkg::WebviewPriority.Critical)
-    runner_assert_eq(r, updated_prio_cfg.priority, 3, "with_priority updates priority")
-    runner_assert_eq(r, cfg.priority, 2, "original cfg.priority remains unchanged")
+    let mev = pkg::WebviewEvent { kind: 6, width: 0, height: 0, url: "", title: "", text: "hi" }
+    runner_assert_eq(r, mev.is_message(), true, "Message event is_message")
+    runner_assert_eq(r, mev.is_close(), false, "Message event not close")
+    runner_assert_true(r, len(mev.summary()) > 0, "summary non-empty")
 
     # ═══════════════════════════════════════════════════════════
-    # 5. Result Container & Methods
+    # 4. Queue push / peek / poll / clear
     # ═══════════════════════════════════════════════════════════
-    let ok_res = pkg::ok_result(42, "Computed successfully")
-    runner_assert_eq(r, ok_res.is_ok(), true, "ok_res.is_ok() == 1")
-    runner_assert_eq(r, ok_res.is_error(), false, "ok_res.is_error() == 0")
-    runner_assert_str_eq(r, ok_res.unwrap_or("fallback"), "Computed successfully", "ok_res unwrap_or returns message")
-
-    let err_res = pkg::error_result("Failed operation", ["Invalid input", "Timeout"])
-    runner_assert_eq(r, err_res.is_ok(), false, "err_res.is_ok() == 0")
-    runner_assert_eq(r, err_res.is_error(), true, "err_res.is_error() == 1")
-    runner_assert_str_eq(r, err_res.unwrap_or("fallback"), "fallback", "err_res unwrap_or returns fallback")
-    runner_assert_eq(r, len(err_res.errors), 2, "err_res contains 2 error details")
-
-    # ═══════════════════════════════════════════════════════════
-    # 6. Statistics Container & Methods
-    # ═══════════════════════════════════════════════════════════
-    let stats = pkg::make_stats(20, 18, 2, 0)
-    runner_assert_eq(r, stats.total, 20, "stats.total == 20")
-    runner_assert_eq(r, stats.passed, 18, "stats.passed == 18")
-    runner_assert_eq(r, stats.failed, 2, "stats.failed == 2")
-    runner_assert_eq(r, stats.total_checked(), 20, "stats.total_checked() == 20")
-    runner_assert_str_eq(r, stats.success_rate(), "90%", "stats.success_rate() == 90%")
+    let q2 = pkg::event_queue()
+    runner_assert_eq(r, pkg::drain(null, null), 0, "drain null null is 0")
+    runner_assert(r, pkg::poll(null) == pkg::WebviewEventKind.None, "poll null kind None")
+    runner_assert_eq(r, pkg::event_queue_push(q2, cev), 1, "push returns 1")
+    runner_assert_eq(r, pkg::event_queue_push(q2, mev), 2, "push returns 2")
+    runner_assert_eq(r, pkg::event_queue_len(q2), 2, "len is 2")
+    runner_assert_eq(r, pkg::event_queue_is_empty(q2), false, "not empty")
+    let first = pkg::event_queue_peek(q2)
+    runner_assert_eq(r, first.kind, 1, "peek sees Close first")
+    let got = pkg::event_queue_poll(q2)
+    runner_assert_eq(r, got.kind, 1, "poll takes Close first")
+    runner_assert_eq(r, pkg::event_queue_len(q2), 1, "len is 1 after poll")
+    runner_assert_eq(r, pkg::event_queue_clear(q2), true, "clear ok")
+    runner_assert_eq(r, pkg::event_queue_is_empty(q2), true, "empty after clear")
+    runner_assert(r, pkg::event_queue_poll(q2) is null, "poll empty is null")
+    runner_assert(r, pkg::event_queue_peek(q2) is null, "peek empty is null")
 
     # ═══════════════════════════════════════════════════════════
-    # 7. Duck Typing Polymorphism (Interfaces)
+    # 5. Null-safe facade (no window needed)
     # ═══════════════════════════════════════════════════════════
-    let is_summ = cfg is pkg::Summarizable
-    runner_assert_true(r, is_summ, "cfg satisfies Summarizable interface implicitly")
-    let iface_summ = pkg::format_summary(cfg)
-    runner_assert_str_eq(r, iface_summ, "Community (count: 5, active)", "format_summary dispatches via Summarizable")
-
-    let is_desc = cfg is pkg::Describable
-    runner_assert_true(r, is_desc, "cfg satisfies Describable interface implicitly")
-    let iface_desc = pkg::format_description(cfg)
-    runner_assert_true(r, len(iface_desc) > 0, "format_description dispatches via Describable")
-
-    # Struct that does not implement Summarizable
-    let is_stats_summ = stats is pkg::Summarizable
-    runner_assert_false(r, is_stats_summ, "stats does not satisfy Summarizable interface")
-
-    # ═══════════════════════════════════════════════════════════
-    # 8. Workflow Processing & Batching
-    # ═══════════════════════════════════════════════════════════
-    let proc_res = pkg::process("Alice", 3, pkg::WebviewPriority.High)
-    runner_assert_eq(r, proc_res.is_ok(), 1, "pkg::process returns successful result")
-    runner_assert_str_eq(r, proc_res.message, "OK", "pkg::process message is OK")
-
-    let batch_in = ["Alpha", "Beta", "Gamma"]
-    let batch_out = pkg::process_batch(batch_in)
-    runner_assert_eq(r, len(batch_out), 3, "process_batch returns 3 formatted records")
-
-    let null_batch = pkg::process_batch(null)
-    runner_assert_eq(r, len(null_batch), 0, "process_batch(null) returns empty array")
-
-    # ═══════════════════════════════════════════════════════════
-    # 9. Control Flow & Pattern Matching Utilities
-    # ═══════════════════════════════════════════════════════════
-    runner_assert_eq(r, pkg::clamp(50, 0, 100), 50, "clamp within bounds")
-    runner_assert_eq(r, pkg::clamp(-10, 0, 100), 0, "clamp lower bound")
-    runner_assert_eq(r, pkg::clamp(150, 0, 100), 100, "clamp upper bound")
-
-    runner_assert_str_eq(r, pkg::pluralize(1, "record", "records"), "record", "pluralize 1 gives singular")
-    runner_assert_str_eq(r, pkg::pluralize(0, "record", "records"), "records", "pluralize 0 gives plural")
-    runner_assert_str_eq(r, pkg::pluralize(5, "record", "records"), "records", "pluralize 5 gives plural")
-
-    let repeated = pkg::repeat_string("item", 3)
-    runner_assert_eq(r, len(repeated), 3, "repeat_string produces 3 elements")
-    runner_assert_str_eq(r, repeated[0], "item", "repeated element matches input")
+    runner_assert_eq(r, pkg::destroy(null), true, "destroy null safe")
+    runner_assert_eq(r, pkg::show(null), false, "show null is 0")
+    runner_assert_eq(r, pkg::hide(null), false, "hide null is 0")
+    runner_assert_eq(r, pkg::is_open(null), false, "is_open null is 0")
+    runner_assert_eq(r, pkg::is_ready(null), false, "is_ready null is 0")
+    runner_assert_eq(r, pkg::request_close(null), false, "request_close null is 0")
+    runner_assert_eq(r, pkg::set_title(null, "x"), false, "set_title null is 0")
+    runner_assert_eq(r, pkg::resize(null, 1, 1), false, "resize null is 0")
+    runner_assert_eq(r, pkg::navigate(null, "https://example.com"), false, "navigate null is 0")
+    runner_assert_eq(r, pkg::navigate(null, ""), false, "navigate empty is 0")
+    runner_assert_eq(r, pkg::load_html(null, "<h1>x</h1>"), false, "load_html null is 0")
+    runner_assert_eq(r, pkg::reload(null), false, "reload null is 0")
+    runner_assert_eq(r, pkg::back(null), false, "back null is 0")
+    runner_assert_eq(r, pkg::forward(null), false, "forward null is 0")
+    runner_assert_eq(r, pkg::can_back(null), false, "can_back null is 0")
+    runner_assert_eq(r, pkg::can_forward(null), false, "can_forward null is 0")
+    runner_assert_eq(r, pkg::eval(null, "1"), false, "eval null is 0")
+    runner_assert_eq(r, pkg::eval_state(null), pkg::WebviewEvalState.Error, "eval_state null is Error")
+    runner_assert_str_eq(r, pkg::eval_result(null), "", "eval_result null empty")
+    runner_assert_str_eq(r, pkg::eval_wait(null, "1"), "", "eval_wait null empty")
+    runner_assert_eq(r, pkg::post_message(null, "{}"), false, "post_message null is 0")
+    runner_assert_eq(r, pkg::set_devtools(null, 1), false, "set_devtools null is 0")
+    runner_assert_eq(r, pkg::set_js(null, 1), false, "set_js null is 0")
+    runner_assert_eq(r, pkg::set_user_agent(null, "x"), false, "set_user_agent null is 0")
+    runner_assert_eq(r, pkg::apply_settings(null, s), 0, "apply_settings null is 0")
+    runner_assert_eq(r, pkg::apply_settings(null, null), 0, "apply_settings null null is 0")
+    runner_assert_str_eq(r, pkg::last_url(null), "", "last_url null empty")
+    runner_assert_str_eq(r, pkg::last_title(null), "", "last_title null empty")
+    runner_assert_str_eq(r, pkg::last_text(null), "", "last_text null empty")
 
     # ═══════════════════════════════════════════════════════════
-    # 10. Destructuring: Tuples & Maps
+    # 6. Native smoke: bundled C linked + backend selected
     # ═══════════════════════════════════════════════════════════
-    let (t_prefix, t_count) = ("Custom", 42)
-    runner_assert_str_eq(r, t_prefix, "Custom", "tuple destructuring binds string")
-    runner_assert_eq(r, t_count, 42, "tuple destructuring binds integer")
-
-    let pkg_info = { "name": "webview", "version": "0.1.0" }
-    let { name: info_name, version: info_ver } = pkg_info
-    runner_assert_str_eq(r, info_name, "webview", "map destructuring extracts key name")
-    runner_assert_str_eq(r, info_ver, "0.1.0", "map destructuring extracts key version")
-
-    # ═══════════════════════════════════════════════════════════
-    # 11. Feature-Gated API (`extras`, default-on)
-    # ═══════════════════════════════════════════════════════════
-    @cfg(feature = "extras")
-    let extra_res = pkg::extra_greeting("Alya")
-    @cfg(feature = "extras")
-    runner_assert_str_eq(r, extra_res, "Howdy, Alya!", "pkg::extra_greeting returns extras greeting")
-
-    # 12. Native C FFI verification
     let c_sum = pkg::c_add(10, 32)
     runner_assert_eq(r, c_sum, 42, "pkg::c_add executes bundled C code")
 
-    # 13. Per-OS backend selection (1 = Windows/WebView2, 2 = macOS/WKWebView, 3 = Linux/WebKitGTK)
     let bid = pkg::backend_id()
-    runner_assert_true(r, bid >= 1 and bid <= 3, "pkg::backend_id returns compiled backend (1..3)")
+    runner_assert_true(r, bid >= 1 and bid <= 3, "backend id in 1..3")
+    let bname = pkg::backend()
+    runner_assert_true(r, bname == "windows" or bname == "macos" or bname == "linux", "backend is a known name")
 
     let failed = runner_summary(r)
     if failed > 0

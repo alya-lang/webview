@@ -1,0 +1,86 @@
+## webview/core/events — in-memory browser event queue
+##
+## Part of the Alya Language package ecosystem (https://github.com/alya-lang).
+## FIFO queue for `WebviewEvent` records. The native backends push OS work
+## into a C ring buffer; `native/browser.alya` drains it into this queue so
+## applications poll structured records instead of raw integers.
+
+import "../types.alya"
+
+## FIFO queue of `WebviewEvent` records with a polling cursor.
+##
+## ### Fields
+## - `events`: Buffered events (only indexes `>= head` are live).
+## - `head`: Index of the next event to poll.
+pub struct WebviewEventQueue
+    events: array,
+    head: int
+end
+
+## Creates an empty event queue.
+pub function event_queue_new() -> WebviewEventQueue
+    return WebviewEventQueue { events: [], head: 0 }
+end
+
+## Returns the number of pending (unpopped) events.
+pub function event_queue_len(q: WebviewEventQueue) -> int
+    if q is null
+        return 0
+    end
+    return len(q.events) - q.head
+end
+
+## Returns 1 when no events are pending.
+pub function event_queue_is_empty(q: WebviewEventQueue) -> int
+    if event_queue_len(q) == 0
+        return true
+    end
+    return false
+end
+
+## Appends an event; returns the pending count afterwards.
+pub function event_queue_push(q: WebviewEventQueue, ev: WebviewEvent) -> int
+    if q is null or ev is null
+        return event_queue_len(q)
+    end
+    q.events.push(ev)
+    return event_queue_len(q)
+end
+
+## Returns the next event without removing it, or null when empty.
+pub function event_queue_peek(q: WebviewEventQueue)
+    if event_queue_len(q) == 0
+        return null
+    end
+    return q.events[q.head]
+end
+
+## Removes and returns the next event, or null when empty.
+pub function event_queue_poll(q: WebviewEventQueue)
+    if event_queue_len(q) == 0
+        return null
+    end
+    let ev = q.events[q.head]
+    q.head += 1
+    if q.head > 64 and q.head * 2 >= len(q.events)
+        let rest = []
+        let i = q.head
+        while i < len(q.events)
+            rest.push(q.events[i])
+            i += 1
+        end
+        q.events = rest
+        q.head = 0
+    end
+    return ev
+end
+
+## Drops all pending events and resets the cursor.
+pub function event_queue_clear(q: WebviewEventQueue) -> int
+    if q is null
+        return false
+    end
+    q.events = []
+    q.head = 0
+    return true
+end

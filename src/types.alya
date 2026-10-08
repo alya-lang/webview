@@ -1,434 +1,120 @@
 ## webview Types & Data Structures
 ##
 ## Part of the Alya Language package ecosystem (https://github.com/alya-lang).
-## Defines configuration models, enumerations, structural interfaces, and associated methods
-## showcasing the full range of modern Alya type system capabilities.
-
-# ───────────────────────────────────────────────────────────────
-# Structural Interfaces (Duck Typing)
-# ───────────────────────────────────────────────────────────────
-
-## Public interface for objects capable of producing a formatted string summary.
-##
-## Any struct implementing a `summary(self) -> string` method implicitly
-## satisfies this interface via Alya's structural duck-typing runtime.
-pub interface Summarizable
-    function summary(self) -> string
-end
-
-## Public interface for objects that provide detailed status descriptions and validation.
-##
-## Structs implementing `describe(self) -> string` and `is_valid(self) -> int`
-## satisfy this contract without explicit inheritance declarations.
-pub interface Describable
-    function describe(self) -> string
-    function is_valid(self) -> int
-end
+## Browser-domain models: event kinds, event records, settings, and the
+## portable event queue consumed by `native/browser.alya` and `lib.alya`.
 
 # ───────────────────────────────────────────────────────────────
 # Enumerations
 # ───────────────────────────────────────────────────────────────
 
-## Public enumeration of entity lifecycle status states.
+## Browser event kinds, mirroring `ALYA_WEBVIEW_EVENT_*` in `c/webview.h`.
 ##
-## Defines sequential status codes from pending to completed or error states.
-pub enum WebviewStatus
+## `None` is never queued; `poll()` returns it when no event is pending.
+pub enum WebviewEventKind
+    None = 0,
+    Close = 1,
+    Resize = 2,
+    NavStart = 3,
+    NavDone = 4,
+    Title = 5,
+    Message = 6
+end
+
+## JS eval completion states, mirroring `ALYA_WEBVIEW_EVAL_*`.
+pub enum WebviewEvalState
     Pending = 0,
-    Active = 1,
-    Archived = 2,
-    Error = 3
-end
-
-## Public enumeration of operational priority levels.
-##
-## Used to determine dispatch scheduling, queue ordering, and urgency tiers.
-pub enum WebviewPriority
-    Low = 0,
-    Normal = 1,
-    High = 2,
-    Critical = 3
-end
-
-## Public enumeration of greeting and presentation styles.
-##
-## Governs formatting salutations, prefixes, and stylistic tone.
-pub enum WebviewStyle
-    Standard = 0,
-    Formal = 1,
-    Casual = 2
+    Ready = 1,
+    Error = 2
 end
 
 # ───────────────────────────────────────────────────────────────
 # Data Models (Structs)
 # ───────────────────────────────────────────────────────────────
 
-## Configuration data model holding execution parameters and metadata.
-##
-## Encapsulates target identity, counter thresholds, priority tier, stylistic
-## mode, active status flag, and associated classification tags.
+## One drained browser event.
 ##
 ## ### Fields
-## - `name`: Validated entity identifier string.
-## - `count`: Repetition limit or processing counter.
-## - `priority`: Operational priority level (`WebviewPriority` enum value).
-## - `style`: Presentation style variant (`WebviewStyle` enum value).
-## - `enabled`: Activation flag (1 for active, 0 for inactive).
-## - `tags`: Categorical metadata tags array.
-pub struct WebviewConfig
-    name: string,
-    count: int,
-    priority: int,
-    style: int,
-    enabled: int,
-    tags: array
+## - `kind`: Event kind (`WebviewEventKind` value).
+## - `width`: Client width in pixels at event time.
+## - `height`: Client height in pixels at event time.
+## - `url`: Current URL (`""` when unknown).
+## - `title`: Current document title (`""` when unknown).
+## - `text`: Message payload (`Message` events only, else `""`).
+pub struct WebviewEvent
+    kind: int,
+    width: int,
+    height: int,
+    url: string,
+    title: string,
+    text: string
 end
 
-## Container representing the outcome of an operation.
-##
-## Holds an optional payload value, numeric status code, informational message,
-## and accumulated error diagnostic messages.
+## Engine settings applied with `apply_settings`.
 ##
 ## ### Fields
-## - `value`: Result payload (any type, or null on failure).
-## - `status`: Outcome code (0 for success, non-zero for errors).
-## - `message`: Human-readable summary or error explanation.
-## - `errors`: Diagnostic error messages array.
-pub struct WebviewResult
-    value,
-    status: int,
-    message: string,
-    errors: array
-end
-
-## Aggregated run statistics tracking test, processing, or batch metrics.
-##
-## Records total observed items, successes, failures, and skipped items.
-##
-## ### Fields
-## - `total`: Total processed items count.
-## - `passed`: Succeeded items count.
-## - `failed`: Failed items count.
-## - `skipped`: Skipped items count.
-pub struct WebviewStats
-    total: int,
-    passed: int,
-    failed: int,
-    skipped: int
+## - `devtools`: `1` enables developer tools, `0` disables them.
+## - `js`: `1` enables JavaScript, `0` disables it.
+## - `user_agent`: Custom user-agent string (`""` leaves the default).
+pub struct WebviewSettings
+    devtools: int,
+    js: int,
+    user_agent: string
 end
 
 # ───────────────────────────────────────────────────────────────
-# Private Helper Functions
+# Factory Constructors
 # ───────────────────────────────────────────────────────────────
 
-# Internal sanitizer ensuring a non-empty, non-null string fallback.
-function sanitize_text_internal(text, fallback: string) -> string
-    return when
-        text is null => fallback
-        text == ""   => fallback
-        else         => text
-    end
-end
-
-# Formats integer division as a percentage string, clamping denominator zero.
-function format_percent_internal(passed: int, total: int) -> string
-    if total <= 0
-        return "0%"
-    end
-    let pct = (passed * 100) / total
-    return "{pct}%"
-end
-
-# ───────────────────────────────────────────────────────────────
-# Public Sanitization and Factory Constructors
-# ───────────────────────────────────────────────────────────────
-
-## Validates and sanitizes a candidate name string.
-##
-## Replaces null or empty strings with the default `"World"` fallback.
-##
-## ### Parameters
-## - `name`: The candidate name value to sanitize.
-##
-## ### Returns
-## The validated string value, or `"World"` if empty or null.
+## Builds default engine settings (devtools off, JS on, default UA).
 ##
 ## ### Examples
 ## ```alya
-## let clean = sanitize_name(null) # "World"
-## let user = sanitize_name("Alice") # "Alice"
+## let s = default_settings()
 ## ```
-pub function sanitize_name(name) -> string
-    return sanitize_text_internal(name, "World")
-end
-
-## Factory constructor creating a validated `WebviewConfig` instance.
-##
-## Sanitizes the input name and sets sensible defaults for optional fields.
-##
-## ### Parameters
-## - `name`: Entity identifier name. Defaults to `"World"`.
-## - `count`: Counter or repetition limit. Defaults to `1`.
-## - `priority`: Priority tier. Defaults to `WebviewPriority.Normal`.
-## - `style`: Presentation style variant. Defaults to `WebviewStyle.Standard`.
-## - `enabled`: Active flag. Defaults to `1`.
-## - `tags`: Categorization tags array. Defaults to `[]`.
-##
-## ### Returns
-## A fully initialized `WebviewConfig` instance.
-##
-## ### Examples
-## ```alya
-## let cfg = make_config("Alice", 3, WebviewPriority.High)
-## ```
-pub function make_config(name = "World", count: int = 1, priority: int = WebviewPriority.Normal, style: int = WebviewStyle.Standard, enabled: int = 1, tags: array = []) -> WebviewConfig
-    let valid_name = sanitize_name(name)
-    return WebviewConfig {
-        name: valid_name,
-        count: count,
-        priority: priority,
-        style: style,
-        enabled: enabled,
-        tags: tags
+pub function default_settings() -> WebviewSettings
+    return WebviewSettings {
+        devtools: 0,
+        js: 1,
+        user_agent: ""
     }
 end
 
-## Factory constructor creating a successful `WebviewResult`.
+## Builds engine settings with explicit values.
 ##
 ## ### Parameters
-## - `value`: The success payload to encapsulate.
-## - `message`: Descriptive success message string. Defaults to `"OK"`.
-##
-## ### Returns
-## A `WebviewResult` with status `0` and empty errors array.
-##
-## ### Examples
-## ```alya
-## let res = ok_result("Processed data", "Success")
-## ```
-pub function ok_result(value, message: string = "OK") -> WebviewResult
-    return WebviewResult {
-        value: value,
-        status: 0,
-        message: message,
-        errors: []
-    }
-end
-
-## Factory constructor creating a failed `WebviewResult`.
-##
-## ### Parameters
-## - `message`: Descriptive error message string.
-## - `errors`: Diagnostic error details array. Defaults to `[]`.
-##
-## ### Returns
-## A `WebviewResult` with status `1` and null value payload.
-##
-## ### Examples
-## ```alya
-## let err = error_result("Validation failed", ["Name is missing"])
-## ```
-pub function error_result(message: string, errors: array = []) -> WebviewResult
-    return WebviewResult {
-        value: null,
-        status: 1,
-        message: message,
-        errors: errors
-    }
-end
-
-## Factory constructor creating a `WebviewStats` metric record.
-##
-## ### Parameters
-## - `total`: Total observed items count.
-## - `passed`: Succeeded items count.
-## - `failed`: Failed items count.
-## - `skipped`: Skipped items count. Defaults to `0`.
-##
-## ### Returns
-## A populated `WebviewStats` record.
-##
-## ### Examples
-## ```alya
-## let stats = make_stats(100, 95, 5, 0)
-## ```
-pub function make_stats(total: int, passed: int, failed: int, skipped: int = 0) -> WebviewStats
-    return WebviewStats {
-        total: total,
-        passed: passed,
-        failed: failed,
-        skipped: skipped
+## - `devtools`: `1` enables developer tools. Defaults to `0`.
+## - `js`: `1` enables JavaScript. Defaults to `1`.
+## - `user_agent`: Custom user-agent string. Defaults to `""`.
+pub function make_settings(devtools: int = 0, js: int = 1, user_agent: string = "") -> WebviewSettings
+    return WebviewSettings {
+        devtools: devtools,
+        js: js,
+        user_agent: user_agent
     }
 end
 
 # ───────────────────────────────────────────────────────────────
-# Struct Methods: WebviewConfig
+# Struct Methods: WebviewEvent
 # ───────────────────────────────────────────────────────────────
 
-## Returns a formatted single-line string summary of this configuration.
-##
-## Implicitly satisfies the `Summarizable` interface.
-##
-## ### Parameters
-## - `self`: The target `WebviewConfig` instance.
-##
-## ### Returns
-## Formatted summary string in the form `"{name} (count: {count}, enabled: {enabled})"`.
-pub function WebviewConfig.summary(self: WebviewConfig) -> string
-    let active_str = when self.enabled
-        is true => "active"
-        else => "disabled"
-    end
-    return "{self.name} (count: {self.count}, {active_str})"
-end
-
-## Returns a detailed multi-attribute description of this configuration.
-##
-## Implicitly satisfies the `Describable` interface.
-##
-## ### Parameters
-## - `self`: The target `WebviewConfig` instance.
-##
-## ### Returns
-## Detailed descriptive string including priority and style codes.
-pub function WebviewConfig.describe(self: WebviewConfig) -> string
-    return "[Config] name={self.name}, count={self.count}, priority={self.priority}, style={self.style}"
-end
-
-## Validates whether this configuration conforms to essential operational constraints.
-##
-## Implicitly satisfies the `Describable` interface.
-##
-## ### Parameters
-## - `self`: The target `WebviewConfig` instance.
-##
-## ### Returns
-## `1` if valid (non-empty name and count >= 0), `0` otherwise.
-pub function WebviewConfig.is_valid(self: WebviewConfig) -> int
-    if self.name == "" or self.count < 0
-        return false
-    end
-    return true
-end
-
-## Returns 1 if this configuration is enabled, 0 otherwise.
-##
-## ### Parameters
-## - `self`: The target `WebviewConfig` instance.
-##
-## ### Returns
-## `1` when enabled, `0` when disabled.
-pub function WebviewConfig.is_enabled(self: WebviewConfig) -> int
-    return self.enabled
-end
-
-## Returns a new configuration copy with an updated name.
-##
-## ### Parameters
-## - `self`: The current `WebviewConfig` instance.
-## - `new_name`: The replacement name string.
-##
-## ### Returns
-## A new `WebviewConfig` instance with updated name.
-pub function WebviewConfig.with_name(self: WebviewConfig, new_name) -> WebviewConfig
-    return WebviewConfig {
-        name: sanitize_name(new_name),
-        count: self.count,
-        priority: self.priority,
-        style: self.style,
-        enabled: self.enabled,
-        tags: self.tags
-    }
-end
-
-## Returns a new configuration copy with an updated priority level.
-##
-## ### Parameters
-## - `self`: The current `WebviewConfig` instance.
-## - `new_priority`: New priority level from `WebviewPriority`.
-##
-## ### Returns
-## A new `WebviewConfig` instance with updated priority.
-pub function WebviewConfig.with_priority(self: WebviewConfig, new_priority: int) -> WebviewConfig
-    return WebviewConfig {
-        name: self.name,
-        count: self.count,
-        priority: new_priority,
-        style: self.style,
-        enabled: self.enabled,
-        tags: self.tags
-    }
-end
-
-# ───────────────────────────────────────────────────────────────
-# Struct Methods: WebviewResult
-# ───────────────────────────────────────────────────────────────
-
-## Returns 1 if this result represents a successful operation.
-##
-## ### Parameters
-## - `self`: The target `WebviewResult` instance.
-##
-## ### Returns
-## `1` when status is `0`, `0` otherwise.
-pub function WebviewResult.is_ok(self: WebviewResult) -> int
-    if self.status == 0
+## Returns 1 when this event closes the window (`Close` kind).
+pub function WebviewEvent.is_close(self: WebviewEvent) -> int
+    if self.kind == WebviewEventKind.Close
         return true
     end
     return false
 end
 
-## Returns 1 if this result represents an error condition.
-##
-## ### Parameters
-## - `self`: The target `WebviewResult` instance.
-##
-## ### Returns
-## `1` when status is non-zero, `0` when status is `0`.
-pub function WebviewResult.is_error(self: WebviewResult) -> int
-    if self.status != 0
+## Returns 1 when this event carries a JS message (`Message` kind).
+pub function WebviewEvent.is_message(self: WebviewEvent) -> int
+    if self.kind == WebviewEventKind.Message
         return true
     end
     return false
 end
 
-## Unwraps the result's message string, or returns a fallback string on error.
-##
-## ### Parameters
-## - `self`: The target `WebviewResult` instance.
-## - `fallback`: Alternative string returned if this result represents an error.
-##
-## ### Returns
-## `message` on success, or `fallback` on error.
-pub function WebviewResult.unwrap_or(self: WebviewResult, fallback: string) -> string
-    if self.status == 0
-        return self.message
-    end
-    return fallback
-end
-
-# ───────────────────────────────────────────────────────────────
-# Struct Methods: WebviewStats
-# ───────────────────────────────────────────────────────────────
-
-## Returns the total number of checked items (passed + failed).
-##
-## ### Parameters
-## - `self`: The target `WebviewStats` instance.
-##
-## ### Returns
-## Integer sum of passed and failed items.
-pub function WebviewStats.total_checked(self: WebviewStats) -> int
-    return self.passed + self.failed
-end
-
-## Computes and returns the success rate percentage as a formatted string.
-##
-## ### Parameters
-## - `self`: The target `WebviewStats` instance.
-##
-## ### Returns
-## Formatted percentage string (e.g. `"90%"`).
-pub function WebviewStats.success_rate(self: WebviewStats) -> string
-    let checked = self.passed + self.failed
-    return format_percent_internal(self.passed, checked)
+## Returns a one-line summary of this event for logging.
+pub function WebviewEvent.summary(self: WebviewEvent) -> string
+    return "event(kind={self.kind}, url={self.url})"
 end
