@@ -674,20 +674,40 @@ const char *alya_webview_engine_version(void) {
     id pool;
     id bundle;
     id ver;
+    Class cls;
     if (probed) {
         return cached;
     }
     probed = 1;
     cached[0] = '\0';
+    cls = objc_getClass("NSBundle");
+    if (cls == NULL) {
+        return "";
+    }
     pool = wv_pool_push();
-    bundle = objc_msgSend((id)objc_getClass("NSBundle"),
+    bundle = objc_msgSend((id)cls,
                           wv_sel("bundleWithIdentifier:"),
                           wv_nsstr("com.apple.WebKit"));
     if (bundle != NULL) {
         ver = objc_msgSend(bundle,
                            wv_sel("objectForInfoDictionaryKey:"),
                            wv_nsstr("CFBundleShortVersionString"));
-        wv_copy(cached, sizeof(cached), wv_cstr(ver));
+        if (ver == NULL) {
+            ver = objc_msgSend(bundle,
+                               wv_sel("objectForInfoDictionaryKey:"),
+                               wv_nsstr("CFBundleVersion"));
+        }
+        if (ver != NULL) {
+            const char *cs = wv_cstr(ver);
+            if (cs != NULL && cs[0] != '\0') {
+                wv_copy(cached, sizeof(cached), cs);
+            }
+        }
+    }
+    if (cached[0] == '\0') {
+        if (objc_getClass("WKWebView") != NULL) {
+            wv_copy(cached, sizeof(cached), "WebKit");
+        }
     }
     wv_pool_pop(pool);
     return cached;

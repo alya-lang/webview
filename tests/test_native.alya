@@ -126,6 +126,7 @@ function main()
         # Diagnostics: install hooks, fire console + async error, collect.
         runner_assert_eq(r, pkg::on_error(w), true, "error hook submitted")
         runner_assert_eq(r, pkg::capture_console(w, 1), true, "console hook submitted")
+        pkg::eval_wait(w, "1", 50)
         pkg::eval(w, "console.log('probe-console-1')")
         let gotc = false
         let c0 = clock_ms()
@@ -141,6 +142,7 @@ function main()
             sleep(10)
         end
         runner_assert_eq(r, gotc, true, "console entry forwarded")
+        pkg::eval_wait(w, "1", 50)
         pkg::eval(w, "setTimeout(function(){throw new Error('probe-err-1')},0)")
         let gote = false
         let e0 = clock_ms()
