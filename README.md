@@ -130,6 +130,7 @@ main()
 | `backend()` | `pub function` | Returns `"windows"`, `"macos"`, or `"linux"` for the compiled target. |
 | `backend_id()` | `pub function` | Returns `1` (Windows), `2` (macOS), or `3` (Linux). |
 | `open(title, width, height)` | `pub function` | Opens a browser window; null without display or engine. |
+| `open_external(url)` | `pub function` | Opens a URL in the default browser; `1` when attempted (opt-in fallback). |
 | `destroy(win)` | `pub function` | Destroys a handle (null-safe, always `1`). |
 | `show(win)` / `hide(win)` | `pub function` | Shows or hides a window (null-safe). |
 | `is_open(win)` | `pub function` | Returns `1` while the handle is open. |

@@ -88,6 +88,12 @@ int alya_webview_set_user_agent(alya_webview_t *w, const char *ua);
  * the oldest queued event kind (ALYA_WEBVIEW_EVENT_*). Payload of the
  * returned event is visible through the event_* getters until the next
  * poll() call. */
+/* Best-effort launch of a URL in the user's default browser.
+ * Opt-in fallback for machines without an embeddable engine: never
+ * blocks, never throws. Returns 1 when the launch was attempted,
+ * 0 when it was not (NULL/empty URL, headless helpers missing). */
+int alya_webview_open_external(const char *url);
+
 int alya_webview_poll(alya_webview_t *w);
 int alya_webview_event_width(alya_webview_t *w);
 int alya_webview_event_height(alya_webview_t *w);

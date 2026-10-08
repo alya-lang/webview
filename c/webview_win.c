@@ -20,6 +20,7 @@
 #define _UNICODE
 #include <windows.h>
 #include <objbase.h>
+#include <shellapi.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -652,6 +653,21 @@ int alya_webview_backend_id(void) {
 
 const char *alya_webview_backend_name(void) {
     return "windows";
+}
+
+int alya_webview_open_external(const char *url) {
+    wchar_t *u;
+    HINSTANCE rc;
+    if (url == NULL || url[0] == '\0') {
+        return 0;
+    }
+    u = wv_utf8_to_wide(url);
+    if (u == NULL) {
+        return 0;
+    }
+    rc = ShellExecuteW(NULL, L"open", u, NULL, NULL, SW_SHOWNORMAL);
+    free(u);
+    return ((INT_PTR)rc > 32) ? 1 : 0;
 }
 
 alya_webview_t *alya_webview_create(const char *title, int width,

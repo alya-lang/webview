@@ -37,6 +37,12 @@ pub function settings_with(devtools: int = 0, js: int = 1, user_agent: string = 
     return make_settings(devtools, js, user_agent)
 end
 
+## Opens a URL in the user's default browser (opt-in fallback).
+## Returns `1` when the launch was attempted.
+pub function open_external(url: string) -> int
+    return native_browser_open_external(url)
+end
+
 ## Opens a browser window; null when no display or engine is available.
 pub function open(title: string = "Alya", width: int = 800, height: int = 600)
     return native_browser_open(title, width, height)

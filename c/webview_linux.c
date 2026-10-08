@@ -19,6 +19,9 @@
 #include <dlfcn.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #define WV_MAX_EVENTS 64
 
@@ -474,6 +477,35 @@ int alya_webview_backend_id(void) {
 
 const char *alya_webview_backend_name(void) {
     return "linux";
+}
+
+int alya_webview_open_external(const char *url) {
+    pid_t first;
+    // Double fork so no zombie is left behind and no GTK is needed:
+    // works even when the engine libraries are absent. Requires the
+    // ubiquitous xdg-open helper on desktop systems.
+    if (url == NULL || url[0] == '\0') {
+        return 0;
+    }
+    first = fork();
+    if (first < 0) {
+        return 0;
+    }
+    if (first == 0) {
+        pid_t second = fork();
+        if (second < 0) {
+            _exit(127);
+        }
+        if (second == 0) {
+            execlp("xdg-open", "xdg-open", url, (char *)NULL);
+            _exit(127);
+        }
+        _exit(0);
+    }
+    // Reap the intermediate child; the grandchild is adopted by init.
+    while (waitpid(first, NULL, 0) < 0) {
+    }
+    return 1;
 }
 
 alya_webview_t *alya_webview_create(const char *title, int width,

@@ -398,6 +398,28 @@ const char *alya_webview_backend_name(void) {
     return "macos";
 }
 
+int alya_webview_open_external(const char *url) {
+    id pool;
+    id ws;
+    id nsurl;
+    long ok = 0;
+    if (url == NULL || url[0] == '\0') {
+        return 0;
+    }
+    pool = wv_pool_push();
+    ws = objc_msgSend((id)objc_getClass("NSWorkspace"),
+                      wv_sel("sharedWorkspace"));
+    if (ws != NULL) {
+        nsurl = objc_msgSend((id)objc_getClass("NSURL"),
+                             wv_sel("URLWithString:"), wv_nsstr(url));
+        if (nsurl != NULL) {
+            ok = (long)objc_msgSend(ws, wv_sel("openURL:"), nsurl);
+        }
+    }
+    wv_pool_pop(pool);
+    return ok ? 1 : 0;
+}
+
 alya_webview_t *alya_webview_create(const char *title, int width,
                                     int height) {
     alya_webview_t *w;

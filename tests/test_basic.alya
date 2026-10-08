@@ -106,6 +106,8 @@ function main()
     runner_assert_str_eq(r, pkg::last_url(null), "", "last_url null empty")
     runner_assert_str_eq(r, pkg::last_title(null), "", "last_title null empty")
     runner_assert_str_eq(r, pkg::last_text(null), "", "last_text null empty")
+    runner_assert_eq(r, pkg::open_external(null), false, "open_external null is 0")
+    runner_assert_eq(r, pkg::open_external(""), false, "open_external empty is 0")
 
     # ═══════════════════════════════════════════════════════════
     # 6. Native smoke: bundled C linked + backend selected

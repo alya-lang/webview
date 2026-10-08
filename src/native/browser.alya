@@ -13,6 +13,7 @@ import "../core/events.alya"
 extern "C" from "webview"
     function alya_webview_backend_id() -> i32
     function alya_webview_backend_name() -> str
+    function alya_webview_open_external(url: str) -> i32
     function alya_webview_create(title: str, width: i32, height: i32) -> ptr
     function alya_webview_destroy(w: ptr) -> void
     function alya_webview_show(w: ptr) -> void
@@ -56,6 +57,16 @@ pub function native_backend_name() -> string
         return "unknown"
     end
     return n
+end
+
+## Opens a URL in the user's default browser (opt-in fallback for
+## machines without an embeddable engine). Never blocks.
+## Returns `1` when the launch was attempted.
+pub function native_browser_open_external(url: string) -> int
+    if url is null or url == ""
+        return false
+    end
+    return alya_webview_open_external(url)
 end
 
 ## Opens a browser window; null when no display or engine is available.
