@@ -27,6 +27,13 @@ extras = []
 
 [build]
 c-sources = ["c/webview.c"]
+c-sources-windows = ["c/webview_win.c"]
+c-sources-macos = ["c/webview_mac.c"]
+c-sources-linux = ["c/webview_linux.c"]
+# Real backends will need (added with the native calls, not the stubs):
+# c-link-flags-windows = ["-lwebview2loader"]
+# c-link-flags-macos = ["-framework", "Cocoa", "-framework", "WebKit"]
+# c-link-flags-linux = ["-lwebkit2gtk-4.1", "-lgtk-3"]
 c-flags = ["-O2"]
 c-include-dirs = ["c"]
 links = "webview"

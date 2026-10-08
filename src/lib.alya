@@ -202,3 +202,9 @@ import "./ffi.alya"
 pub function c_add(a: int = 0, b: int = 0) -> int
     return alya_webview_add(a, b)
 end
+
+## Returns the compiled native backend id (`1` Windows/WebView2,
+## `2` macOS/WKWebView, `3` Linux/WebKitGTK).
+pub function backend_id() -> int
+    return alya_webview_backend_id()
+end
