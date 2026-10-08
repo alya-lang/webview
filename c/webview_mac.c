@@ -37,6 +37,9 @@ extern BOOL class_addIvar(Class cls, const char *name, size_t size,
 extern Ivar class_getInstanceVariable(Class cls, const char *name);
 extern id object_setIvar(id obj, Ivar ivar, id value);
 extern id object_getIvar(id obj, Ivar ivar);
+typedef struct objc_protocol Protocol;
+extern Protocol *objc_getProtocol(const char *name);
+extern BOOL class_addProtocol(Class cls, Protocol *protocol);
 extern void *_NSConcreteStackBlock[32];
 #if defined(__x86_64__)
 extern double objc_msgSend_fpret(id self, SEL op, ...);
@@ -346,6 +349,14 @@ static Class wv_delegate_class(void) {
         Class nsobj = objc_getClass("NSObject");
         cls = objc_allocateClassPair(nsobj, "AlyaWebviewDelegate", 0);
         class_addIvar(cls, "wvCtx", sizeof(void *), 3, "^v");
+        Protocol *protoNav = objc_getProtocol("WKNavigationDelegate");
+        if (protoNav != NULL) {
+            class_addProtocol(cls, protoNav);
+        }
+        Protocol *protoMsg = objc_getProtocol("WKScriptMessageHandler");
+        if (protoMsg != NULL) {
+            class_addProtocol(cls, protoMsg);
+        }
         class_addMethod(cls,
                         sel_registerName("webView:didStartProvisionalNavigation:"),
                         (IMP)wv_did_start, "v@:@@");
@@ -354,6 +365,9 @@ static Class wv_delegate_class(void) {
                         (IMP)wv_did_finish, "v@:@@");
         class_addMethod(cls,
                         sel_registerName("webView:didFailNavigation:withError:"),
+                        (IMP)wv_did_fail, "v@:@@@");
+        class_addMethod(cls,
+                        sel_registerName("webView:didFailProvisionalNavigation:withError:"),
                         (IMP)wv_did_fail, "v@:@@@");
         class_addMethod(cls,
                         sel_registerName("userContentController:didReceiveScriptMessage:"),
@@ -391,10 +405,30 @@ static void wv_js_invoke(void *blk, id result, id error) {
     wv_block_t *b = (wv_block_t *)blk;
     alya_webview_t *w = (b != NULL) ? b->w : NULL;
     if (w != NULL) {
-        if (error == NULL && result != NULL) {
-            id desc = wv_send0(id, result, wv_sel("description"));
-            wv_copy(w->eval_result, sizeof(w->eval_result),
-                    wv_cstr(desc));
+        if (error == NULL) {
+            if (result == NULL) {
+                w->eval_result[0] = '\0';
+            } else {
+                Class numCls = objc_getClass("NSNumber");
+                if (numCls != NULL &&
+                    wv_send1(BOOL, result, wv_sel("isKindOfClass:"), (id)numCls)) {
+                    const char *type =
+                        wv_send0(const char *, result, wv_sel("objCType"));
+                    if (type != NULL && strcmp(type, "c") == 0) {
+                        BOOL bval = wv_send0(BOOL, result, wv_sel("boolValue"));
+                        wv_copy(w->eval_result, sizeof(w->eval_result),
+                                bval ? "true" : "false");
+                    } else {
+                        id desc = wv_send0(id, result, wv_sel("description"));
+                        wv_copy(w->eval_result, sizeof(w->eval_result),
+                                wv_cstr(desc));
+                    }
+                } else {
+                    id desc = wv_send0(id, result, wv_sel("description"));
+                    wv_copy(w->eval_result, sizeof(w->eval_result),
+                            wv_cstr(desc));
+                }
+            }
             w->eval_state = ALYA_WEBVIEW_EVAL_READY;
         } else {
             w->eval_result[0] = '\0';
@@ -664,7 +698,12 @@ static Class wv_scheme_class(void) {
     static Class cls = NULL;
     if (cls == NULL) {
         Class nsobj = objc_getClass("NSObject");
+        Protocol *proto;
         cls = objc_allocateClassPair(nsobj, "AlyaWebSchemeHandler", 0);
+        proto = objc_getProtocol("WKURLSchemeHandler");
+        if (proto != NULL) {
+            class_addProtocol(cls, proto);
+        }
         class_addMethod(cls,
                         sel_registerName("webView:startURLSchemeTask:"),
                         (IMP)wv_scheme_start, "v@:@@");
@@ -674,6 +713,15 @@ static Class wv_scheme_class(void) {
         objc_registerClassPair(cls);
     }
     return cls;
+}
+
+static id wv_get_scheme_handler(void) {
+    static id handler = NULL;
+    if (handler == NULL) {
+        id sh = wv_send0(id, (id)wv_scheme_class(), wv_sel("alloc"));
+        handler = wv_send0(id, sh, wv_sel("init"));
+    }
+    return handler;
 }
 
 
@@ -883,12 +931,10 @@ static alya_webview_t *wv_create_inner(const char *title, int width,
     }
     // App-scheme handler (consulting the serve_folder table per request).
     {
-        id sh = wv_send0(id, (id)wv_scheme_class(), wv_sel("alloc"));
-        sh = wv_send0(id, sh, wv_sel("init"));
+        id sh = wv_get_scheme_handler();
         if (sh != NULL) {
             wv_send2(void, config, wv_sel("setURLSchemeHandler:forURLScheme:"),
                      sh, wv_nsstr("alya"));
-            wv_send0(void, sh, wv_sel("release"));
         }
     }
     ucc = wv_send0(id, config, wv_sel("userContentController"));
