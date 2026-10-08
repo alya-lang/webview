@@ -9,6 +9,20 @@
 
 import "../types.alya"
 import "../core/events.alya"
+import "std/str" as str
+
+# Strips one layer of JSON string quoting ("abc" -> abc).
+# Non-strings (numbers, booleans, null) pass through untouched,
+# except JSON null which maps to "" (unknown value).
+function json_unquote(s: string) -> string
+    if s is null or s == ""
+        return ""
+    end
+    if s == "null"
+        return ""
+    end
+    return str::trim_char(s, "\"")
+end
 
 extern "C" from "webview"
     function alya_webview_backend_id() -> i32
@@ -68,6 +82,19 @@ extern "C" from "webview"
     function alya_webview_set_images(w: ptr, enabled: i32) -> i32
     function alya_webview_set_webgl(w: ptr, enabled: i32) -> i32
     function alya_webview_set_charset(w: ptr, cs: str) -> i32
+    function alya_webview_set_borderless(w: ptr, enabled: i32) -> i32
+    function alya_webview_set_topmost(w: ptr, enabled: i32) -> i32
+    function alya_webview_set_opacity(w: ptr, alpha: f64) -> i32
+    function alya_webview_set_click_through(w: ptr, enabled: i32) -> i32
+    function alya_webview_set_fullscreen(w: ptr, enabled: i32) -> i32
+    function alya_webview_focus(w: ptr) -> i32
+    function alya_webview_minimize(w: ptr) -> i32
+    function alya_webview_restore(w: ptr) -> i32
+    function alya_webview_set_position(w: ptr, x: i32, y: i32) -> i32
+    function alya_webview_stop(w: ptr) -> i32
+    function alya_webview_reload_bypass(w: ptr) -> i32
+    function alya_webview_serve_folder(host: str, folder: str) -> i32
+    function alya_webview_clear_mapping(host: str) -> i32
 end
 
 ## Returns the embeddable engine version (`""` when not probeable).
@@ -298,6 +325,310 @@ pub function native_browser_set_charset(win, cs: string) -> int
         cs = "UTF-8"
     end
     return alya_webview_set_charset(win, cs)
+end
+
+## Drops title bar and borders (reversible). Returns `1` when applied.
+pub function native_browser_set_borderless(win, enabled: int) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_set_borderless(win, enabled)
+end
+
+## Keeps the window above all others. Returns `1` when applied.
+pub function native_browser_set_topmost(win, enabled: int) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_set_topmost(win, enabled)
+end
+
+## Sets window opacity (`0.0` invisible .. `1.0` opaque).
+## Returns `1` when applied.
+pub function native_browser_set_opacity(win, alpha: float) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_set_opacity(win, alpha as f64)
+end
+
+## Lets input pass to windows below. Returns `1` when applied.
+pub function native_browser_set_click_through(win, enabled: int) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_set_click_through(win, enabled)
+end
+
+## Toggles exclusive fullscreen. Returns `1` when applied.
+pub function native_browser_set_fullscreen(win, enabled: int) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_set_fullscreen(win, enabled)
+end
+
+## Focuses the window and its page. Returns `1` when accepted.
+pub function native_browser_focus(win) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_focus(win)
+end
+
+## Minimizes the window. Returns `1` when accepted.
+pub function native_browser_minimize(win) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_minimize(win)
+end
+
+## Restores a minimized window. Returns `1` when accepted.
+pub function native_browser_restore(win) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_restore(win)
+end
+
+## Moves the window to screen pixel (`x`, `y`). Returns `1` when accepted.
+pub function native_browser_set_position(win, x: int, y: int) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_set_position(win, x, y)
+end
+
+## Stops the current load. Returns `1` when accepted.
+pub function native_browser_stop(win) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_stop(win)
+end
+
+## Reloads bypassing the cache. Returns `1` when accepted.
+pub function native_browser_reload_bypass(win) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_reload_bypass(win)
+end
+
+## Serves a local folder under `alya://host/path`. Returns `1` when
+## registered (on macOS applies to subsequently opened windows).
+pub function native_browser_serve_folder(host: string, folder: string) -> int
+    if host is null or host == ""
+        return false
+    end
+    if folder is null or folder == ""
+        return false
+    end
+    return alya_webview_serve_folder(host, folder)
+end
+
+## Removes a folder mapping (`""` clears all). Returns `1` when processed.
+pub function native_browser_clear_mapping(host: string) -> int
+    if host is null
+        host = ""
+    end
+    return alya_webview_clear_mapping(host)
+end
+
+# ───────────────────────────────────────────────────────────────
+# Page helpers (pure scripting over eval; uniform on all engines)
+# ───────────────────────────────────────────────────────────────
+# Notes: string arguments must not contain single quotes (v1
+# limitation); eval results are JSON-encoded (strings arrive quoted).
+
+## Finds text in the page (`window.find`); returns `1` when found.
+pub function native_browser_find_text(win, query: string) -> int
+    if win is null
+        return false
+    end
+    if query is null or query == ""
+        return false
+    end
+    if native_browser_eval_wait(win, "window.find('" + query + "')", 200) == "true"
+        return true
+    end
+    return false
+end
+
+## Returns the page HTML source (`""` when unavailable).
+pub function native_browser_get_source(win) -> string
+    if win is null
+        return ""
+    end
+    return native_browser_eval_wait(win, "document.documentElement.outerHTML", 200)
+end
+
+## Returns the rendered page text (`""` when unavailable).
+pub function native_browser_get_text(win) -> string
+    if win is null
+        return ""
+    end
+    return native_browser_eval_wait(win, "document.body.innerText", 200)
+end
+
+## Returns the document title (`""` when unavailable).
+pub function native_browser_document_title(win) -> string
+    if win is null
+        return ""
+    end
+    return json_unquote(native_browser_eval_wait(win, "document.title", 200))
+end
+
+## Returns the current URL (`""` when unavailable).
+pub function native_browser_current_url(win) -> string
+    if win is null
+        return ""
+    end
+    return json_unquote(native_browser_eval_wait(win, "location.href", 200))
+end
+
+## Returns the history length (`""` when unavailable).
+pub function native_browser_history_length(win) -> string
+    if win is null
+        return ""
+    end
+    return native_browser_eval_wait(win, "history.length", 200)
+end
+
+## Returns the navigator user-agent (`""` when unavailable).
+pub function native_browser_user_agent(win) -> string
+    if win is null
+        return ""
+    end
+    return json_unquote(native_browser_eval_wait(win, "navigator.userAgent", 200))
+end
+
+## Returns the viewport width in CSS pixels (`""` when unavailable).
+pub function native_browser_viewport_width(win) -> string
+    if win is null
+        return ""
+    end
+    return native_browser_eval_wait(win, "window.innerWidth", 200)
+end
+
+## Returns the viewport height in CSS pixels (`""` when unavailable).
+pub function native_browser_viewport_height(win) -> string
+    if win is null
+        return ""
+    end
+    return native_browser_eval_wait(win, "window.innerHeight", 200)
+end
+
+## Returns the document character set (`""` when unavailable).
+pub function native_browser_doc_charset(win) -> string
+    if win is null
+        return ""
+    end
+    return json_unquote(native_browser_eval_wait(win, "document.characterSet", 200))
+end
+
+## Returns the page language (`""` when unavailable).
+pub function native_browser_page_language(win) -> string
+    if win is null
+        return ""
+    end
+    return json_unquote(native_browser_eval_wait(win, "navigator.language", 200))
+end
+
+## Returns `1` when the page reports itself online.
+pub function native_browser_is_online(win) -> int
+    if win is null
+        return false
+    end
+    if native_browser_eval_wait(win, "navigator.onLine", 200) == "true"
+        return true
+    end
+    return false
+end
+
+## Returns the referrer (`""` when none).
+pub function native_browser_referrer(win) -> string
+    if win is null
+        return ""
+    end
+    return json_unquote(native_browser_eval_wait(win, "document.referrer", 200))
+end
+
+## Reads a localStorage value (JSON-encoded, `""` when missing).
+pub function native_browser_storage_get(win, key: string) -> string
+    if win is null
+        return ""
+    end
+    if key is null or key == ""
+        return ""
+    end
+    return native_browser_eval_wait(win, "localStorage.getItem('" + key + "')", 200)
+end
+
+## Writes a localStorage value; returns `1` when submitted.
+pub function native_browser_storage_set(win, key: string, value: string) -> int
+    if win is null
+        return false
+    end
+    if key is null or key == ""
+        return false
+    end
+    if value is null
+        value = ""
+    end
+    return native_browser_eval(win, "localStorage.setItem('" + key + "','" + value + "')")
+end
+
+## Removes a localStorage value; returns `1` when submitted.
+pub function native_browser_storage_remove(win, key: string) -> int
+    if win is null
+        return false
+    end
+    if key is null or key == ""
+        return false
+    end
+    return native_browser_eval(win, "localStorage.removeItem('" + key + "')")
+end
+
+## Scrolls to document pixel (`x`, `y`); returns `1` when submitted.
+pub function native_browser_scroll_to(win, x: int, y: int) -> int
+    if win is null
+        return false
+    end
+    return native_browser_eval(win, "window.scrollTo(" + str(x) + "," + str(y) + ")")
+end
+
+## Scrolls by (`dx`, `dy`) pixels; returns `1` when submitted.
+pub function native_browser_scroll_by(win, dx: int, dy: int) -> int
+    if win is null
+        return false
+    end
+    return native_browser_eval(win, "window.scrollBy(" + str(dx) + "," + str(dy) + ")")
+end
+
+## Scrolls to the top; returns `1` when submitted.
+pub function native_browser_scroll_top(win) -> int
+    if win is null
+        return false
+    end
+    return native_browser_eval(win, "window.scrollTo(0,0)")
+end
+
+## Scrolls to the bottom; returns `1` when submitted.
+pub function native_browser_scroll_bottom(win) -> int
+    if win is null
+        return false
+    end
+    return native_browser_eval(win, "window.scrollTo(0,document.body.scrollHeight)")
+end
+
+## Opens the print dialog; returns `1` when submitted.
+pub function native_browser_print_page(win) -> int
+    if win is null
+        return false
+    end
+    return native_browser_eval(win, "window.print()")
 end
 
 ## Returns the configured profile folder (`""` when default).

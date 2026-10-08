@@ -83,6 +83,7 @@ static void *wv_h_gtk;
 static void *wv_h_webkit;
 static void *wv_h_gobject;
 static void *wv_h_glib;
+static void *wv_h_gio;
 static void *wv_h_jsc;
 
 #define WV_DECL(ret, name, ...) static ret (*p_##name)(__VA_ARGS__)
@@ -124,6 +125,28 @@ WV_DECL(const char *, webkit_web_view_get_uri, GtkWidget *v);
 WV_DECL(const char *, webkit_web_view_get_title, GtkWidget *v);
 WV_DECL(void *, webkit_web_view_get_settings, GtkWidget *v);
 WV_DECL(void *, webkit_web_view_get_user_content_manager, GtkWidget *v);
+WV_DECL(void, webkit_web_view_stop_loading, GtkWidget *v);
+WV_DECL(void, webkit_web_view_reload_bypass_cache, GtkWidget *v);
+WV_DECL(void *, webkit_web_context_get_default, void);
+WV_DECL(void, webkit_web_context_register_uri_scheme, void *ctx,
+        const char *scheme, void *cb, void *data, void *destroy);
+WV_DECL(const char *, webkit_uri_scheme_request_get_uri, void *req);
+WV_DECL(void, webkit_uri_scheme_request_finish, void *req, void *stream,
+        long long len, const char *mime);
+WV_DECL(void, gtk_window_set_decorated, GtkWidget *w, int v);
+WV_DECL(void, gtk_window_set_keep_above, GtkWidget *w, int v);
+WV_DECL(void, gtk_widget_set_opacity, GtkWidget *w, double v);
+WV_DECL(void, gtk_widget_input_shape_combine_region, GtkWidget *w,
+        void *region);
+WV_DECL(void, gtk_window_fullscreen, GtkWidget *w);
+WV_DECL(void, gtk_window_unfullscreen, GtkWidget *w);
+WV_DECL(void, gtk_widget_grab_focus, GtkWidget *w);
+WV_DECL(void, gtk_window_iconify, GtkWidget *w);
+WV_DECL(void, gtk_window_deiconify, GtkWidget *w);
+WV_DECL(void, gtk_window_present, GtkWidget *w);
+WV_DECL(void, gtk_window_move, GtkWidget *w, int x, int y);
+WV_DECL(void *, g_memory_input_stream_new_from_data, const void *data,
+        long long len, void *destroy);
 WV_DECL(unsigned int, webkit_get_major_version, void);
 WV_DECL(unsigned int, webkit_get_minor_version, void);
 WV_DECL(unsigned int, webkit_get_micro_version, void);
@@ -171,11 +194,14 @@ WV_DECL(void, g_error_free, void *e);
     p_##name = (void *)dlsym((handle), #name)
 
 static void wv_unload_all(void) {
+    if (wv_h_gio != NULL) {
+        dlclose(wv_h_gio);
+        wv_h_gio = NULL;
+    }
     if (wv_h_jsc != NULL) {
         dlclose(wv_h_jsc);
         wv_h_jsc = NULL;
-    }
-    if (wv_h_webkit != NULL) {
+    }    if (wv_h_webkit != NULL) {
         dlclose(wv_h_webkit);
         wv_h_webkit = NULL;
     }
@@ -209,6 +235,8 @@ static int wv_load_all(void) {
                                           "libgobject-2.0.so", NULL};
     static const char *glib_names[] = {"libglib-2.0.so.0", "libglib-2.0.so",
                                        NULL};
+    static const char *gio_names[] = {"libgio-2.0.so.0", "libgio-2.0.so",
+                                      NULL};
     if (tried) {
         return ok;
     }
@@ -225,6 +253,13 @@ static int wv_load_all(void) {
     for (i = 0; glib_names[i] != NULL; i++) {
         wv_h_glib = dlopen(glib_names[i], RTLD_NOW | RTLD_GLOBAL);
         if (wv_h_glib != NULL) {
+            break;
+        }
+    }
+    wv_h_gio = NULL;
+    for (i = 0; gio_names[i] != NULL; i++) {
+        wv_h_gio = dlopen(gio_names[i], RTLD_NOW | RTLD_GLOBAL);
+        if (wv_h_gio != NULL) {
             break;
         }
     }
@@ -250,7 +285,7 @@ static int wv_load_all(void) {
         }
     }
     if (wv_h_gtk == NULL || wv_h_webkit == NULL || wv_h_gobject == NULL ||
-        wv_h_glib == NULL || wv_h_jsc == NULL) {
+        wv_h_glib == NULL || wv_h_gio == NULL || wv_h_jsc == NULL) {
         wv_unload_all();
         ok = 0;
         return 0;
@@ -316,6 +351,24 @@ static int wv_load_all(void) {
     WV_LOAD(wv_h_webkit, webkit_user_script_new);
     WV_LOAD(wv_h_webkit, webkit_user_content_manager_add_script);
     WV_LOAD(wv_h_webkit, webkit_user_content_manager_remove_all_scripts);
+    WV_LOAD(wv_h_webkit, webkit_web_view_stop_loading);
+    WV_LOAD(wv_h_webkit, webkit_web_view_reload_bypass_cache);
+    WV_LOAD(wv_h_webkit, webkit_web_context_get_default);
+    WV_LOAD(wv_h_webkit, webkit_web_context_register_uri_scheme);
+    WV_LOAD(wv_h_webkit, webkit_uri_scheme_request_get_uri);
+    WV_LOAD(wv_h_webkit, webkit_uri_scheme_request_finish);
+    WV_LOAD(wv_h_gtk, gtk_window_set_decorated);
+    WV_LOAD(wv_h_gtk, gtk_window_set_keep_above);
+    WV_LOAD(wv_h_gtk, gtk_widget_set_opacity);
+    WV_LOAD(wv_h_gtk, gtk_widget_input_shape_combine_region);
+    WV_LOAD(wv_h_gtk, gtk_window_fullscreen);
+    WV_LOAD(wv_h_gtk, gtk_window_unfullscreen);
+    WV_LOAD(wv_h_gtk, gtk_widget_grab_focus);
+    WV_LOAD(wv_h_gtk, gtk_window_iconify);
+    WV_LOAD(wv_h_gtk, gtk_window_deiconify);
+    WV_LOAD(wv_h_gtk, gtk_window_present);
+    WV_LOAD(wv_h_gtk, gtk_window_move);
+    WV_LOAD(wv_h_gio, g_memory_input_stream_new_from_data);
 
     ok = 1;
     return 1;
@@ -605,6 +658,7 @@ static GtkWidget *wv_new_view(int priv) {
     if (priv) {
         ctx = p_webkit_web_context_new_ephemeral();
         if (ctx != NULL) {
+            wv_register_scheme_on(ctx);
             v = (GtkWidget *)p_webkit_web_view_new_with_context(ctx);
             if (v != NULL) {
                 return v;
@@ -623,6 +677,7 @@ static GtkWidget *wv_new_view(int priv) {
         if (mgr != NULL) {
             ctx = p_webkit_web_context_new_with_website_data_manager(mgr);
             if (ctx != NULL) {
+                wv_register_scheme_on(ctx);
                 v = (GtkWidget *)p_webkit_web_view_new_with_context(ctx);
                 if (v != NULL) {
                     return v;
@@ -1460,6 +1515,307 @@ int alya_webview_set_charset(alya_webview_t *w, const char *cs) {
         cs = "UTF-8";
     }
     p_webkit_settings_set_default_charset(s, cs);
+    return 1;
+}
+
+/* Local folder hosting (alya://host/path). Mappings live in a
+ * process-wide table; the scheme is registered on the default context
+ * at serve time and on custom contexts at creation. Only regular
+ * files are served (GET); traversal and misses yield empty pages. */
+
+#define WV_MAX_MAPS 8
+#define WV_MAX_FILE (8 * 1024 * 1024)
+
+static struct {
+    char host[128];
+    char folder[1024];
+    int used;
+} wv_maps[WV_MAX_MAPS];
+
+static int wv_scheme_default_on = 0;
+
+static const char *wv_mime_for(const char *path) {
+    static const struct {
+        const char *ext;
+        const char *mime;
+    } map[] = {{".html", "text/html"},
+               {".htm", "text/html"},
+               {".js", "application/javascript"},
+               {".css", "text/css"},
+               {".json", "application/json"},
+               {".png", "image/png"},
+               {".jpg", "image/jpeg"},
+               {".jpeg", "image/jpeg"},
+               {".gif", "image/gif"},
+               {".svg", "image/svg+xml"},
+               {".ico", "image/x-icon"},
+               {".txt", "text/plain"},
+               {".wasm", "application/wasm"},
+               {".mp4", "video/mp4"},
+               {".webm", "video/webm"},
+               {".mp3", "audio/mpeg"},
+               {".woff2", "font/woff2"},
+               {NULL, NULL}};
+    const char *dot = strrchr(path, '.');
+    int i;
+    if (dot == NULL) {
+        return "application/octet-stream";
+    }
+    for (i = 0; map[i].ext != NULL; i++) {
+        if (strcmp(dot, map[i].ext) == 0) {
+            return map[i].mime;
+        }
+    }
+    return "application/octet-stream";
+}
+
+static void wv_scheme_serve(void *req, void *data) {
+    const char *uri;
+    const char *p;
+    const char *slash;
+    char host[128];
+    char full[2048];
+    size_t hlen;
+    int i;
+    FILE *f;
+    long size;
+    char *buf;
+    void *stream;
+    (void)data;
+    if (req == NULL) {
+        return;
+    }
+    uri = p_webkit_uri_scheme_request_get_uri(req);
+    if (uri == NULL) {
+        uri = "";
+    }
+    p = strstr(uri, "://");
+    p = (p != NULL) ? p + 3 : uri;
+    slash = strchr(p, '/');
+    hlen = slash != NULL ? (size_t)(slash - p) : strlen(p);
+    if (hlen == 0 || hlen > sizeof(host) - 1) {
+        goto empty;
+    }
+    memcpy(host, p, hlen);
+    host[hlen] = '\0';
+    for (i = 0; i < WV_MAX_MAPS; i++) {
+        if (wv_maps[i].used && strcmp(wv_maps[i].host, host) == 0) {
+            break;
+        }
+    }
+    if (i >= WV_MAX_MAPS) {
+        goto empty;
+    }
+    if (slash == NULL || slash[1] == '\0') {
+        snprintf(full, sizeof(full), "%s/index.html", wv_maps[i].folder);
+    } else {
+        if (strstr(slash, "..") != NULL) {
+            goto empty;
+        }
+        snprintf(full, sizeof(full), "%s%s", wv_maps[i].folder, slash);
+    }
+    f = fopen(full, "rb");
+    if (f == NULL) {
+        goto empty;
+    }
+    fseek(f, 0, SEEK_END);
+    size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (size < 0 || size > WV_MAX_FILE) {
+        fclose(f);
+        goto empty;
+    }
+    buf = (char *)malloc(size > 0 ? (size_t)size : 1);
+    if (buf == NULL) {
+        fclose(f);
+        goto empty;
+    }
+    if (size > 0 && fread(buf, 1, (size_t)size, f) != (size_t)size) {
+        free(buf);
+        fclose(f);
+        goto empty;
+    }
+    fclose(f);
+    // Stream owns the buffer via g_free (transfer-full).
+    stream = p_g_memory_input_stream_new_from_data(buf, (long long)size,
+                                                  (void *)p_g_free);
+    p_webkit_uri_scheme_request_finish(req, stream, (long long)size,
+                                       wv_mime_for(full));
+    return;
+empty:
+    stream = p_g_memory_input_stream_new_from_data("", 0, NULL);
+    p_webkit_uri_scheme_request_finish(req, stream, 0, "text/plain");
+}
+
+static void wv_register_scheme_on(void *ctx) {
+    if (ctx == NULL) {
+        return;
+    }
+    p_webkit_web_context_register_uri_scheme(ctx, "alya",
+                                             (void *)wv_scheme_serve,
+                                             NULL, NULL);
+}
+
+int alya_webview_serve_folder(const char *host, const char *folder) {
+    int i;
+    int free_slot = -1;
+    void *def;
+    if (host == NULL || host[0] == '\0' || folder == NULL ||
+        folder[0] == '\0') {
+        return 0;
+    }
+    if (!wv_load_all()) {
+        return 0;
+    }
+    for (i = 0; i < WV_MAX_MAPS; i++) {
+        if (wv_maps[i].used && strcmp(wv_maps[i].host, host) == 0) {
+            free_slot = i;
+            break;
+        }
+        if (!wv_maps[i].used && free_slot < 0) {
+            free_slot = i;
+        }
+    }
+    if (free_slot < 0) {
+        return 0;
+    }
+    strncpy(wv_maps[free_slot].host, host,
+            sizeof(wv_maps[free_slot].host) - 1);
+    wv_maps[free_slot].host[sizeof(wv_maps[free_slot].host) - 1] = '\0';
+    strncpy(wv_maps[free_slot].folder, folder,
+            sizeof(wv_maps[free_slot].folder) - 1);
+    wv_maps[free_slot].folder[sizeof(wv_maps[free_slot].folder) - 1] = '\0';
+    wv_maps[free_slot].used = 1;
+    // Default context serves immediately; custom contexts register
+    // at creation (see wv_new_view).
+    if (!wv_scheme_default_on) {
+        def = p_webkit_web_context_get_default();
+        if (def != NULL) {
+            wv_register_scheme_on(def);
+            wv_scheme_default_on = 1;
+        }
+    }
+    return 1;
+}
+
+int alya_webview_clear_mapping(const char *host) {
+    int i;
+    if (host == NULL || host[0] == '\0') {
+        for (i = 0; i < WV_MAX_MAPS; i++) {
+            wv_maps[i].used = 0;
+        }
+        return 1;
+    }
+    for (i = 0; i < WV_MAX_MAPS; i++) {
+        if (wv_maps[i].used && strcmp(wv_maps[i].host, host) == 0) {
+            wv_maps[i].used = 0;
+            return 1;
+        }
+    }
+    return 1;
+}
+
+int alya_webview_set_borderless(alya_webview_t *w, int enabled) {
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    p_gtk_window_set_decorated(w->win, enabled ? 0 : 1);
+    return 1;
+}
+
+int alya_webview_set_topmost(alya_webview_t *w, int enabled) {
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    p_gtk_window_set_keep_above(w->win, enabled ? 1 : 0);
+    return 1;
+}
+
+int alya_webview_set_opacity(alya_webview_t *w, double alpha) {
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    if (alpha < 0.0 || alpha > 1.0) {
+        return 0;
+    }
+    p_gtk_widget_set_opacity(w->win, alpha);
+    return 1;
+}
+
+int alya_webview_set_click_through(alya_webview_t *w, int enabled) {
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    // Empty input shape lets clicks fall to windows below.
+    if (enabled) {
+        p_gtk_widget_input_shape_combine_region(w->win, NULL);
+    } else {
+        // Restoring the default shape needs a region; the pragmatic
+        // v1 restore reshows the window, which resets input shaping.
+        p_gtk_widget_hide(w->win);
+        p_gtk_widget_show_all(w->win);
+    }
+    return 1;
+}
+
+int alya_webview_set_fullscreen(alya_webview_t *w, int enabled) {
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    if (enabled) {
+        p_gtk_window_fullscreen(w->win);
+    } else {
+        p_gtk_window_unfullscreen(w->win);
+    }
+    return 1;
+}
+
+int alya_webview_focus(alya_webview_t *w) {
+    if (w == NULL || w->view == NULL) {
+        return 0;
+    }
+    p_gtk_widget_grab_focus(w->view);
+    return 1;
+}
+
+int alya_webview_minimize(alya_webview_t *w) {
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    p_gtk_window_iconify(w->win);
+    return 1;
+}
+
+int alya_webview_restore(alya_webview_t *w) {
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    p_gtk_window_deiconify(w->win);
+    p_gtk_window_present(w->win);
+    return 1;
+}
+
+int alya_webview_set_position(alya_webview_t *w, int x, int y) {
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    p_gtk_window_move(w->win, x, y);
+    return 1;
+}
+
+int alya_webview_stop(alya_webview_t *w) {
+    if (w == NULL || w->view == NULL) {
+        return 0;
+    }
+    p_webkit_web_view_stop_loading(w->view);
+    return 1;
+}
+
+int alya_webview_reload_bypass(alya_webview_t *w) {
+    if (w == NULL || w->view == NULL) {
+        return 0;
+    }
+    p_webkit_web_view_reload_bypass_cache(w->view);
     return 1;
 }
 

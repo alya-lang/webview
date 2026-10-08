@@ -113,8 +113,39 @@ int alya_webview_set_user_agent(alya_webview_t *w, const char *ua);
 /* Best-effort launch of a URL in the user's default browser.
  * Opt-in fallback for machines without an embeddable engine: never
  * blocks, never throws. Returns 1 when the launch was attempted,
- * 0 when it was not (NULL/empty URL, headless helpers missing). */
+ * 0 when it was not (NULL/empty URL, helpers missing). */
 int alya_webview_open_external(const char *url);
+
+/* Window composition (wallpaper/overlay kit). All setters return 1
+ * when applied, 0 otherwise; all are null-safe and reversible.
+ * - borderless: drops title bar and borders (state restored on enable).
+ * - topmost: keeps the window above all others.
+ * - opacity: 0.0 (invisible) .. 1.0 (opaque). Layered parents may
+ *   blank WebView2 content: verify on your build before shipping.
+ * - click_through: input passes to windows below (needs compositing).
+ * - fullscreen: exclusive client-area takeover (restores on disable). */
+int alya_webview_set_borderless(alya_webview_t *w, int enabled);
+int alya_webview_set_topmost(alya_webview_t *w, int enabled);
+int alya_webview_set_opacity(alya_webview_t *w, double alpha);
+int alya_webview_set_click_through(alya_webview_t *w, int enabled);
+int alya_webview_set_fullscreen(alya_webview_t *w, int enabled);
+
+/* Window control (all null-safe; 1 when accepted, 0 otherwise). */
+int alya_webview_focus(alya_webview_t *w);
+int alya_webview_minimize(alya_webview_t *w);
+int alya_webview_restore(alya_webview_t *w);
+int alya_webview_set_position(alya_webview_t *w, int x, int y);
+int alya_webview_stop(alya_webview_t *w);
+int alya_webview_reload_bypass(alya_webview_t *w);
+
+/* Local folder hosting under the app scheme (alya://host/path).
+ * macOS installs the scheme handler at window creation, so mappings
+ * apply to subsequently opened windows there (dynamic elsewhere).
+ * host "" clears the whole table in clear_mapping. Only regular
+ * files are served (GET); misses yield empty responses.
+ * Returns 1 when registered, 0 otherwise. */
+int alya_webview_serve_folder(const char *host, const char *folder);
+int alya_webview_clear_mapping(const char *host);
 
 /* Embeddable engine version ("1.0.4258.31", "4.1.3", ...), "" when the
  * engine cannot be probed. Never NULL. */

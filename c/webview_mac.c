@@ -11,6 +11,7 @@
 
 #include "webview.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -38,6 +39,9 @@ extern id object_setIvar(id obj, Ivar ivar, id value);
 extern id object_getIvar(id obj, Ivar ivar);
 extern void *_NSConcreteStackBlock;
 extern double objc_msgSend_fpret(id self, SEL op, ...);
+#if defined(__x86_64__) || defined(__aarch64__)
+extern void objc_msgSend_stret(void *st, id self, SEL op, ...);
+#endif
 
 typedef struct NSRect {
     double x;
@@ -73,6 +77,8 @@ struct alya_webview {
     int eval_pending; // a completion block is still outstanding
     int allow_menu;   // native context menu policy (default 1)
     int block_keys;   // shortcut-blocking user script installed
+    int is_fullscreen;
+    unsigned long orig_mask; // window style at creation
     char url[ALYA_WEBVIEW_URL_CAP];
     char title[ALYA_WEBVIEW_TEXT_CAP];
     char message[ALYA_WEBVIEW_TEXT_CAP];
@@ -377,6 +383,252 @@ static int wv_fire_js(alya_webview_t *w, const char *js) {
     return 1;
 }
 
+/* Local folder hosting (alya://host/path). The scheme handler is
+ * installed on every configuration at creation; serve/clear mutate a
+ * process-wide host table consulted per request. Only regular files
+ * are served (GET); ".." traversal and misses yield 404. */
+
+#define WV_MAX_MAPS 8
+#define WV_MAX_FILE (8 * 1024 * 1024)
+
+static struct {
+    char host[128];
+    char folder[1024];
+    int used;
+} wv_maps[WV_MAX_MAPS];
+
+int alya_webview_serve_folder(const char *host, const char *folder) {
+    int i;
+    int free_slot = -1;
+    if (host == NULL || host[0] == '\0' || folder == NULL ||
+        folder[0] == '\0') {
+        return 0;
+    }
+    for (i = 0; i < WV_MAX_MAPS; i++) {
+        if (wv_maps[i].used && strcmp(wv_maps[i].host, host) == 0) {
+            free_slot = i;
+            break;
+        }
+        if (!wv_maps[i].used && free_slot < 0) {
+            free_slot = i;
+        }
+    }
+    if (free_slot < 0) {
+        return 0;
+    }
+    strncpy(wv_maps[free_slot].host, host,
+            sizeof(wv_maps[free_slot].host) - 1);
+    wv_maps[free_slot].host[sizeof(wv_maps[free_slot].host) - 1] = '\0';
+    strncpy(wv_maps[free_slot].folder, folder,
+            sizeof(wv_maps[free_slot].folder) - 1);
+    wv_maps[free_slot].folder[sizeof(wv_maps[free_slot].folder) - 1] = '\0';
+    wv_maps[free_slot].used = 1;
+    return 1;
+}
+
+int alya_webview_clear_mapping(const char *host) {
+    int i;
+    if (host == NULL || host[0] == '\0') {
+        for (i = 0; i < WV_MAX_MAPS; i++) {
+            wv_maps[i].used = 0;
+        }
+        return 1;
+    }
+    for (i = 0; i < WV_MAX_MAPS; i++) {
+        if (wv_maps[i].used && strcmp(wv_maps[i].host, host) == 0) {
+            wv_maps[i].used = 0;
+            return 1;
+        }
+    }
+    return 1;
+}
+
+static const char *wv_mime_for(const char *path) {
+    static const struct {
+        const char *ext;
+        const char *mime;
+    } map[] = {{".html", "text/html"},
+               {".htm", "text/html"},
+               {".js", "application/javascript"},
+               {".css", "text/css"},
+               {".json", "application/json"},
+               {".png", "image/png"},
+               {".jpg", "image/jpeg"},
+               {".jpeg", "image/jpeg"},
+               {".gif", "image/gif"},
+               {".svg", "image/svg+xml"},
+               {".ico", "image/x-icon"},
+               {".txt", "text/plain"},
+               {".wasm", "application/wasm"},
+               {".mp4", "video/mp4"},
+               {".webm", "video/webm"},
+               {".mp3", "audio/mpeg"},
+               {".woff2", "font/woff2"},
+               {NULL, NULL}};
+    const char *dot = strrchr(path, '.');
+    int i;
+    if (dot == NULL) {
+        return "application/octet-stream";
+    }
+    for (i = 0; map[i].ext != NULL; i++) {
+        if (strcmp(dot, map[i].ext) == 0) {
+            return map[i].mime;
+        }
+    }
+    return "application/octet-stream";
+}
+
+static void wv_scheme_fail(id task) {
+    id pool = wv_pool_push();
+    id err = objc_msgSend((id)objc_getClass("NSError"),
+                          wv_sel("errorWithDomain:code:userInfo:"),
+                          wv_nsstr("alya"), (long)404, NULL);
+    objc_msgSend(task, wv_sel("didFailWithError:"), err);
+    wv_pool_pop(pool);
+}
+
+static void wv_scheme_start(id self, SEL cmd, id webview, id task) {
+    id pool;
+    id req;
+    id url;
+    const char *abs;
+    const char *p;
+    const char *slash;
+    char host[128];
+    char full[2048];
+    size_t hlen;
+    int i;
+    FILE *f;
+    long size;
+    char *data;
+    (void)self;
+    (void)cmd;
+    (void)webview;
+    if (task == NULL) {
+        return;
+    }
+    pool = wv_pool_push();
+    req = objc_msgSend(task, wv_sel("request"));
+    url = req != NULL
+              ? objc_msgSend(req, wv_sel("URL"))
+              : NULL;
+    abs = url != NULL
+              ? wv_cstr(objc_msgSend(url, wv_sel("absoluteString")))
+              : "";
+    // Expect alya://host/path
+    p = strstr(abs, "://");
+    if (p == NULL) {
+        wv_pool_pop(pool);
+        wv_scheme_fail(task);
+        return;
+    }
+    p += 3;
+    slash = strchr(p, '/');
+    hlen = slash != NULL ? (size_t)(slash - p) : strlen(p);
+    if (hlen == 0 || hlen > sizeof(host) - 1) {
+        wv_pool_pop(pool);
+        wv_scheme_fail(task);
+        return;
+    }
+    memcpy(host, p, hlen);
+    host[hlen] = '\0';
+    for (i = 0; i < WV_MAX_MAPS; i++) {
+        if (wv_maps[i].used && strcmp(wv_maps[i].host, host) == 0) {
+            break;
+        }
+    }
+    if (i >= WV_MAX_MAPS) {
+        wv_pool_pop(pool);
+        wv_scheme_fail(task);
+        return;
+    }
+    if (slash == NULL || slash[1] == '\0') {
+        snprintf(full, sizeof(full), "%s/index.html", wv_maps[i].folder);
+    } else {
+        if (strstr(slash, "..") != NULL) {
+            wv_pool_pop(pool);
+            wv_scheme_fail(task);
+            return;
+        }
+        snprintf(full, sizeof(full), "%s%s", wv_maps[i].folder, slash);
+    }
+    f = fopen(full, "rb");
+    if (f == NULL) {
+        wv_pool_pop(pool);
+        wv_scheme_fail(task);
+        return;
+    }
+    fseek(f, 0, SEEK_END);
+    size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (size < 0 || size > WV_MAX_FILE) {
+        fclose(f);
+        wv_pool_pop(pool);
+        wv_scheme_fail(task);
+        return;
+    }
+    data = (char *)malloc(size > 0 ? (size_t)size : 1);
+    if (data == NULL) {
+        fclose(f);
+        wv_pool_pop(pool);
+        wv_scheme_fail(task);
+        return;
+    }
+    if (size > 0 && fread(data, 1, (size_t)size, f) != (size_t)size) {
+        free(data);
+        fclose(f);
+        wv_pool_pop(pool);
+        wv_scheme_fail(task);
+        return;
+    }
+    fclose(f);
+    {
+        id dataObj = objc_msgSend((id)objc_getClass("NSData"),
+                                  wv_sel("dataWithBytes:length:"), data,
+                                  (unsigned long)(size > 0 ? size : 0));
+        id headers = objc_msgSend((id)objc_getClass("NSMutableDictionary"),
+                                  wv_sel("dictionary"));
+        id resp;
+        free(data);
+        objc_msgSend(headers, wv_sel("setObject:forKey:"),
+                     wv_nsstr(wv_mime_for(full)), wv_nsstr("Content-Type"));
+        resp = objc_msgSend((id)objc_getClass("NSHTTPURLResponse"),
+                            wv_sel("alloc"));
+        resp = objc_msgSend(resp,
+                            wv_sel("initWithURL:statusCode:HTTPVersion:headerFields:"),
+                            url, (long)200, wv_nsstr("HTTP/1.1"), headers);
+        objc_msgSend(task, wv_sel("didReceiveResponse:"), resp);
+        objc_msgSend(task, wv_sel("didReceiveData:"), dataObj);
+        objc_msgSend(task, wv_sel("didFinish"));
+        objc_msgSend(resp, wv_sel("release"));
+    }
+    wv_pool_pop(pool);
+}
+
+static void wv_scheme_stop(id self, SEL cmd, id webview, id task) {
+    // Synchronous serving: nothing to cancel.
+    (void)self;
+    (void)cmd;
+    (void)webview;
+    (void)task;
+}
+
+static Class wv_scheme_class(void) {
+    static Class cls = NULL;
+    if (cls == NULL) {
+        Class nsobj = objc_getClass("NSObject");
+        cls = objc_allocateClassPair(nsobj, "AlyaWebSchemeHandler", 0);
+        class_addMethod(cls,
+                        sel_registerName("webView:startURLSchemeTask:"),
+                        (IMP)wv_scheme_start, "v@:@@");
+        class_addMethod(cls,
+                        sel_registerName("webView:stopURLSchemeTask:"),
+                        (IMP)wv_scheme_stop, "v@:@@");
+        objc_registerClassPair(cls);
+    }
+    return cls;
+}
+
 /* --- autorelease pool helpers (no ObjC syntax available) --- */
 
 static id wv_pool_push(void) {
@@ -563,6 +815,8 @@ static alya_webview_t *wv_create_inner(const char *title, int width,
     }
     objc_msgSend(win, wv_sel("setTitle:"), wv_nsstr(title));
     objc_msgSend(win, wv_sel("setReleasedWhenClosed:"), (BOOL)0);
+    w->orig_mask =
+        (unsigned long)objc_msgSend(win, wv_sel("styleMask"));
 
     config = objc_msgSend((id)objc_getClass("WKWebViewConfiguration"),
                           wv_sel("alloc"));
@@ -572,6 +826,16 @@ static alya_webview_t *wv_create_inner(const char *title, int width,
                                 wv_sel("nonPersistentDataStore"));
         if (store != NULL) {
             objc_msgSend(config, wv_sel("setWebsiteDataStore:"), store);
+        }
+    }
+    // App-scheme handler (consulting the serve_folder table per request).
+    {
+        id sh = objc_msgSend((id)wv_scheme_class(), wv_sel("alloc"));
+        sh = objc_msgSend(sh, wv_sel("init"));
+        if (sh != NULL) {
+            objc_msgSend(config, wv_sel("setURLSchemeHandler:forURLScheme:"),
+                         sh, wv_nsstr("alya"));
+            objc_msgSend(sh, wv_sel("release"));
         }
     }
     ucc = objc_msgSend(config, wv_sel("userContentController"));
@@ -1306,6 +1570,163 @@ int alya_webview_set_charset(alya_webview_t *w, const char *cs) {
     (void)w;
     (void)cs;
     return 0;
+}
+
+int alya_webview_set_borderless(alya_webview_t *w, int enabled) {
+    id pool;
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    pool = wv_pool_push();
+    if (enabled) {
+        objc_msgSend(w->win, wv_sel("setStyleMask:"), (unsigned long)0);
+    } else {
+        objc_msgSend(w->win, wv_sel("setStyleMask:"), w->orig_mask);
+    }
+    wv_pool_pop(pool);
+    return 1;
+}
+
+int alya_webview_set_topmost(alya_webview_t *w, int enabled) {
+    id pool;
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    pool = wv_pool_push();
+    // NSFloatingWindowLevel = 3, NSNormalWindowLevel = 0.
+    objc_msgSend(w->win, wv_sel("setLevel:"), (long)(enabled ? 3 : 0));
+    wv_pool_pop(pool);
+    return 1;
+}
+
+int alya_webview_set_opacity(alya_webview_t *w, double alpha) {
+    id pool;
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    if (alpha < 0.0 || alpha > 1.0) {
+        return 0;
+    }
+    pool = wv_pool_push();
+    objc_msgSend(w->win, wv_sel("setAlphaValue:"), alpha);
+    objc_msgSend(w->win, wv_sel("setOpaque:"), (BOOL)(alpha >= 1.0 ? 1 : 0));
+    wv_pool_pop(pool);
+    return 1;
+}
+
+int alya_webview_set_click_through(alya_webview_t *w, int enabled) {
+    id pool;
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    pool = wv_pool_push();
+    objc_msgSend(w->win, wv_sel("setIgnoresMouseEvents:"),
+                 (BOOL)(enabled ? 1 : 0));
+    wv_pool_pop(pool);
+    return 1;
+}
+
+int alya_webview_set_fullscreen(alya_webview_t *w, int enabled) {
+    id pool;
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    if ((enabled ? 1 : 0) == w->is_fullscreen) {
+        return 1;
+    }
+    pool = wv_pool_push();
+    objc_msgSend(w->win, wv_sel("toggleFullScreen:"), NULL);
+    wv_pool_pop(pool);
+    w->is_fullscreen = enabled ? 1 : 0;
+    return 1;
+}
+
+int alya_webview_focus(alya_webview_t *w) {
+    id pool;
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    pool = wv_pool_push();
+    objc_msgSend(w->win, wv_sel("makeKeyAndOrderFront:"), NULL);
+    if (w->view != NULL) {
+        objc_msgSend(w->win, wv_sel("makeFirstResponder:"), w->view);
+    }
+    wv_pool_pop(pool);
+    return 1;
+}
+
+int alya_webview_minimize(alya_webview_t *w) {
+    id pool;
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    pool = wv_pool_push();
+    objc_msgSend(w->win, wv_sel("miniaturize:"), NULL);
+    wv_pool_pop(pool);
+    return 1;
+}
+
+int alya_webview_restore(alya_webview_t *w) {
+    id pool;
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    pool = wv_pool_push();
+    objc_msgSend(w->win, wv_sel("deminiaturize:"), NULL);
+    wv_pool_pop(pool);
+    return 1;
+}
+
+static double wv_screen_h(void) {
+    id screen = objc_msgSend((id)objc_getClass("NSScreen"),
+                             wv_sel("mainScreen"));
+    NSRect fr;
+    if (screen == NULL) {
+        return 800.0;
+    }
+#if defined(__x86_64__) || defined(__aarch64__)
+    objc_msgSend_stret(&fr, screen, wv_sel("frame"));
+#else
+    fr.h = 800.0;
+#endif
+    return fr.h;
+}
+
+int alya_webview_set_position(alya_webview_t *w, int x, int y) {
+    id pool;
+    NSPoint origin;
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    // Screen coords origin bottom-left: flip the client y.
+    origin.x = (double)x;
+    origin.y = wv_screen_h() - (double)y - (double)w->height;
+    pool = wv_pool_push();
+    objc_msgSend(w->win, wv_sel("setFrameOrigin:"), origin);
+    wv_pool_pop(pool);
+    return 1;
+}
+
+int alya_webview_stop(alya_webview_t *w) {
+    id pool;
+    if (w == NULL || w->view == NULL) {
+        return 0;
+    }
+    pool = wv_pool_push();
+    objc_msgSend(w->view, wv_sel("stopLoading"));
+    wv_pool_pop(pool);
+    return 1;
+}
+
+int alya_webview_reload_bypass(alya_webview_t *w) {
+    id pool;
+    if (w == NULL || w->view == NULL) {
+        return 0;
+    }
+    pool = wv_pool_push();
+    objc_msgSend(w->view, wv_sel("reloadFromOrigin"));
+    wv_pool_pop(pool);
+    return 1;
 }
 
 int alya_webview_poll(alya_webview_t *w) {

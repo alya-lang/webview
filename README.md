@@ -137,6 +137,35 @@ main()
 | `set_extra_args(args)` | `pub function` | Extra Chromium switches, e.g. remote debugging (Win). |
 | `extra_args()` | `pub function` | Configured extra switches (`""` when none). |
 | `profile_path(win)` | `pub function` | Actual folder backing an open window (`""` when none). |
+| `set_borderless(win, enabled)` | `pub function` | Drops title bar and borders (reversible). |
+| `set_topmost(win, enabled)` | `pub function` | Keeps the window above all others. |
+| `set_opacity(win, alpha)` | `pub function` | Window opacity (`0.0` invisible .. `1.0` opaque). |
+| `set_click_through(win, enabled)` | `pub function` | Lets input pass to windows below. |
+| `set_fullscreen(win, enabled)` | `pub function` | Exclusive fullscreen (restores on disable). |
+| `focus(win)` | `pub function` | Focuses the window and its page. |
+| `minimize(win)` / `restore(win)` | `pub function` | Minimizes / restores the window. |
+| `set_position(win, x, y)` | `pub function` | Moves the window to screen pixels. |
+| `stop(win)` | `pub function` | Stops the current load. |
+| `reload_bypass(win)` | `pub function` | Reloads bypassing the cache. |
+| `serve_folder(host, folder)` | `pub function` | Serves a folder under `alya://host/path`. |
+| `clear_mapping(host)` | `pub function` | Removes a folder mapping (`""` clears all). |
+| `find_text(win, query)` | `pub function` | Finds text in the page (`1` when found). |
+| `get_source(win)` | `pub function` | Page HTML source. |
+| `get_text(win)` | `pub function` | Rendered page text. |
+| `document_title(win)` | `pub function` | Document title (unquoted). |
+| `current_url(win)` | `pub function` | Current URL (unquoted). |
+| `history_length(win)` | `pub function` | History length. |
+| `user_agent(win)` | `pub function` | Navigator user-agent (unquoted). |
+| `viewport_width(win)` / `viewport_height(win)` | `pub function` | Viewport size in CSS pixels. |
+| `doc_charset(win)` | `pub function` | Document character set (unquoted). |
+| `page_language(win)` | `pub function` | Page language (unquoted). |
+| `is_online(win)` | `pub function` | `1` when the page reports itself online. |
+| `referrer(win)` | `pub function` | Referrer (unquoted, `""` when none). |
+| `storage_get(win, key)` | `pub function` | localStorage value (JSON-encoded). |
+| `storage_set(win, key, value)` / `storage_remove(win, key)` | `pub function` | Writes / removes a localStorage value. |
+| `scroll_to(win, x, y)` / `scroll_by(win, dx, dy)` | `pub function` | Scrolls the page. |
+| `scroll_top(win)` / `scroll_bottom(win)` | `pub function` | Scrolls to top / bottom. |
+| `print_page(win)` | `pub function` | Opens the print dialog. |
 | `set_extra_args(args)` | `pub function` | Extra Chromium switches for subsequently opened windows (Win). |
 | `set_zoom(win, factor)` | `pub function` | Page zoom (`1.0` = 100%, `1` when applied). |
 | `get_zoom(win)` | `pub function` | Current zoom factor (`0.0` when unknown). |

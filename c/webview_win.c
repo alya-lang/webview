@@ -45,6 +45,13 @@ struct alya_webview {
     HWND hwnd;
     HWND child; // WebView2 content child (resolved lazily, may be NULL)
     char profile[512]; // actual user-data dir ("" when engine-less)
+    LONG_PTR orig_style; // window style at creation (borderless restore)
+    LONG_PTR orig_exstyle; // extended style at creation
+    int fs_saved; // fullscreen geometry stash valid
+    int fs_x;
+    int fs_y;
+    int fs_w;
+    int fs_h;
     int32_t open;
     int32_t ready;
     int32_t width;
@@ -910,6 +917,8 @@ static alya_webview_t *wv_create_inner(const char *title, int width,
         return NULL;
     }
     w->hwnd = hwnd;
+    w->orig_style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+    w->orig_exstyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
 
     // Resolve the loader without any link-time dependency.
     loader = wv_find_loader();
@@ -1537,6 +1546,172 @@ int alya_webview_set_zoom(alya_webview_t *w, double factor) {
 double alya_webview_get_zoom(alya_webview_t *w) {
     (void)w;
     return 0.0;
+}
+
+int alya_webview_set_borderless(alya_webview_t *w, int enabled) {
+    LONG_PTR st;
+    if (w == NULL || w->hwnd == NULL) {
+        return 0;
+    }
+    st = GetWindowLongPtrW(w->hwnd, GWL_STYLE);
+    if (enabled) {
+        st &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX |
+                 WS_MAXIMIZEBOX | WS_SYSMENU);
+    } else {
+        st = w->orig_style;
+    }
+    SetWindowLongPtrW(w->hwnd, GWL_STYLE, st);
+    SetWindowPos(w->hwnd, NULL, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+    return 1;
+}
+
+int alya_webview_set_topmost(alya_webview_t *w, int enabled) {
+    if (w == NULL || w->hwnd == NULL) {
+        return 0;
+    }
+    SetWindowPos(w->hwnd, enabled ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0,
+                 0, SWP_NOMOVE | SWP_NOSIZE);
+    return 1;
+}
+
+int alya_webview_set_opacity(alya_webview_t *w, double alpha) {
+    LONG_PTR ex;
+    BYTE b;
+    if (w == NULL || w->hwnd == NULL) {
+        return 0;
+    }
+    if (alpha < 0.0 || alpha > 1.0) {
+        return 0;
+    }
+    ex = GetWindowLongPtrW(w->hwnd, GWL_EXSTYLE);
+    if ((ex & WS_EX_LAYERED) == 0) {
+        SetWindowLongPtrW(w->hwnd, GWL_EXSTYLE, ex | WS_EX_LAYERED);
+        SetWindowPos(w->hwnd, NULL, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                         SWP_FRAMECHANGED);
+    }
+    b = (BYTE)(alpha * 255.0);
+    return SetLayeredWindowAttributes(w->hwnd, 0, b, LWA_ALPHA) ? 1 : 0;
+}
+
+int alya_webview_set_click_through(alya_webview_t *w, int enabled) {
+    LONG_PTR ex;
+    if (w == NULL || w->hwnd == NULL) {
+        return 0;
+    }
+    ex = GetWindowLongPtrW(w->hwnd, GWL_EXSTYLE);
+    if (enabled) {
+        ex |= (WS_EX_LAYERED | WS_EX_TRANSPARENT);
+    } else {
+        ex &= ~(LONG_PTR)WS_EX_TRANSPARENT;
+    }
+    SetWindowLongPtrW(w->hwnd, GWL_EXSTYLE, ex);
+    SetWindowPos(w->hwnd, NULL, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+    return 1;
+}
+
+int alya_webview_set_fullscreen(alya_webview_t *w, int enabled) {
+    HMONITOR mon;
+    MONITORINFO mi;
+    if (w == NULL || w->hwnd == NULL) {
+        return 0;
+    }
+    if (enabled) {
+        RECT cur;
+        if (!w->fs_saved) {
+            if (GetWindowRect(w->hwnd, &cur)) {
+                w->fs_x = cur.left;
+                w->fs_y = cur.top;
+                w->fs_w = cur.right - cur.left;
+                w->fs_h = cur.bottom - cur.top;
+                w->fs_saved = 1;
+            }
+        }
+        mon = MonitorFromWindow(w->hwnd, MONITOR_DEFAULTTONEAREST);
+        memset(&mi, 0, sizeof(mi));
+        mi.cbSize = sizeof(mi);
+        if (mon != NULL && GetMonitorInfoW(mon, &mi)) {
+            SetWindowPos(w->hwnd, NULL, mi.rcMonitor.left,
+                         mi.rcMonitor.top,
+                         mi.rcMonitor.right - mi.rcMonitor.left,
+                         mi.rcMonitor.bottom - mi.rcMonitor.top,
+                         SWP_NOZORDER);
+            return 1;
+        }
+        return 0;
+    }
+    if (w->fs_saved) {
+        SetWindowPos(w->hwnd, NULL, w->fs_x, w->fs_y, w->fs_w, w->fs_h,
+                     SWP_NOZORDER);
+        w->fs_saved = 0;
+    }
+    return 1;
+}
+
+int alya_webview_focus(alya_webview_t *w) {
+    HWND c;
+    if (w == NULL || w->hwnd == NULL) {
+        return 0;
+    }
+    SetFocus(w->hwnd);
+    c = wv_content_child(w);
+    if (c != NULL) {
+        SetFocus(c);
+    }
+    return 1;
+}
+
+int alya_webview_minimize(alya_webview_t *w) {
+    if (w == NULL || w->hwnd == NULL) {
+        return 0;
+    }
+    ShowWindow(w->hwnd, SW_MINIMIZE);
+    return 1;
+}
+
+int alya_webview_restore(alya_webview_t *w) {
+    if (w == NULL || w->hwnd == NULL) {
+        return 0;
+    }
+    ShowWindow(w->hwnd, SW_RESTORE);
+    return 1;
+}
+
+int alya_webview_set_position(alya_webview_t *w, int x, int y) {
+    if (w == NULL || w->hwnd == NULL) {
+        return 0;
+    }
+    SetWindowPos(w->hwnd, NULL, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
+    return 1;
+}
+
+int alya_webview_stop(alya_webview_t *w) {
+    // Needs Core::Stop (unverified slot): report unsupported.
+    (void)w;
+    return 0;
+}
+
+int alya_webview_reload_bypass(alya_webview_t *w) {
+    // No cache-bypass entry reachable on verified slots: unsupported.
+    (void)w;
+    return 0;
+}
+
+int alya_webview_serve_folder(const char *host, const char *folder) {
+    // Request interception needs WebResourceRequested slots
+    // (unverified): unsupported. Serve local trees over file:// or a
+    // companion http server instead.
+    (void)host;
+    (void)folder;
+    return 0;
+}
+
+int alya_webview_clear_mapping(const char *host) {
+    // No table exists on this backend: clearing is a successful no-op.
+    (void)host;
+    return 1;
 }
 
 int alya_webview_poll(alya_webview_t *w) {

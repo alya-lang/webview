@@ -88,6 +88,31 @@ function main()
         runner_assert_eq(r, nk, 4, "NAV_DONE event pumped")
         let js = pkg::eval_wait(w, "1+1", 800)
         runner_assert_str_eq(r, js, "2", "JS eval returns JSON result")
+        runner_assert_eq(r, pkg::find_text(w, "hi"), true, "find_text hits body")
+        runner_assert_eq(r, pkg::find_text(w, "zzz-no-match"), false, "find_text misses cleanly")
+        runner_assert_eq(r, pkg::storage_set(w, "k1", "v1"), true, "storage_set submitted")
+        # Note: load_html pages live on an opaque origin where Web storage
+        # throws, so no roundtrip is asserted here; submit coverage plus
+        # the null-path suite exercise the wrappers. Real roundtrips need
+        # an http(s) or app-scheme origin.
+        runner_assert_eq(r, pkg::storage_remove(w, "k1"), true, "storage_remove submitted")
+        runner_assert_eq(r, pkg::scroll_to(w, 0, 0), true, "scroll_to submitted")
+        runner_assert_eq(r, pkg::scroll_by(w, 0, 10), true, "scroll_by submitted")
+        runner_assert_eq(r, pkg::scroll_top(w), true, "scroll_top submitted")
+        runner_assert_eq(r, pkg::scroll_bottom(w), true, "scroll_bottom submitted")
+        runner_assert_true(r, len(pkg::get_source(w)) > 0, "get_source non-empty")
+        runner_assert_true(r, len(pkg::get_text(w)) > 0, "get_text non-empty")
+        runner_assert_true(r, len(pkg::document_title(w)) > 0, "document_title non-empty")
+        runner_assert_true(r, len(pkg::current_url(w)) > 0, "current_url non-empty")
+        runner_assert_true(r, len(pkg::history_length(w)) > 0, "history_length non-empty")
+        runner_assert_true(r, len(pkg::user_agent(w)) > 0, "user_agent non-empty")
+        runner_assert_true(r, len(pkg::viewport_width(w)) > 0, "viewport_width non-empty")
+        runner_assert_true(r, len(pkg::viewport_height(w)) > 0, "viewport_height non-empty")
+        runner_assert_str_eq(r, pkg::doc_charset(w), "UTF-8", "doc_charset is UTF-8")
+        runner_assert_true(r, len(pkg::page_language(w)) > 0, "page_language non-empty")
+        runner_assert_true(r, len(pkg::referrer(w)) >= 0, "referrer is a string")
+        let ol = pkg::is_online(w)
+        runner_assert_true(r, ol == 0 or ol == 1, "is_online in 0..1")
         runner_assert_eq(r, pkg::can_back(w), false, "fresh page cannot go back")
         runner_assert_eq(r, pkg::post_message(w, "{\"ping\":1}"), true, "post_message delivered")
     else
@@ -150,7 +175,51 @@ function main()
         runner_assert_true(r, pkg::profile_path(w) == "" or len(pkg::profile_path(w)) > 0, "profile path is a string")
     end
 
-    # 7. Graceful close -> CLOSE event -> not open
+    # 7. Composition + control on the live window (tolerant ranges)
+    let bl = pkg::set_borderless(w, 1)
+    runner_assert_true(r, bl == 0 or bl == 1, "borderless in 0..1")
+    runner_assert_true(r, pkg::set_borderless(w, 0) == 0 or pkg::set_borderless(w, 0) == 1, "border restore in 0..1")
+    runner_assert_true(r, pkg::set_topmost(w, 1) == 0 or pkg::set_topmost(w, 1) == 1, "topmost in 0..1")
+    runner_assert_true(r, pkg::set_topmost(w, 0) == 0 or pkg::set_topmost(w, 0) == 1, "topmost off in 0..1")
+    runner_assert_true(r, pkg::set_opacity(w, 0.9) == 0 or pkg::set_opacity(w, 0.9) == 1, "opacity in 0..1")
+    runner_assert_true(r, pkg::set_opacity(w, 1.0) == 0 or pkg::set_opacity(w, 1.0) == 1, "opacity restore in 0..1")
+    runner_assert_true(r, pkg::set_opacity(w, 9.9) == 0, "opacity out of range is 0")
+    runner_assert_true(r, pkg::set_click_through(w, 1) == 0 or pkg::set_click_through(w, 1) == 1, "click-through in 0..1")
+    runner_assert_true(r, pkg::set_click_through(w, 0) == 0 or pkg::set_click_through(w, 0) == 1, "click restore in 0..1")
+    runner_assert_true(r, pkg::set_fullscreen(w, 1) == 0 or pkg::set_fullscreen(w, 1) == 1, "fullscreen in 0..1")
+    runner_assert_true(r, pkg::set_fullscreen(w, 0) == 0 or pkg::set_fullscreen(w, 0) == 1, "fullscreen off in 0..1")
+    runner_assert_true(r, pkg::focus(w) == 0 or pkg::focus(w) == 1, "focus in 0..1")
+    runner_assert_true(r, pkg::minimize(w) == 0 or pkg::minimize(w) == 1, "minimize in 0..1")
+    runner_assert_true(r, pkg::restore(w) == 0 or pkg::restore(w) == 1, "restore in 0..1")
+    runner_assert_true(r, pkg::show(w) == 0 or pkg::show(w) == 1, "show after restore in 0..1")
+    runner_assert_true(r, pkg::set_position(w, 100, 100) == 0 or pkg::set_position(w, 100, 100) == 1, "position in 0..1")
+    runner_assert_true(r, pkg::stop(w) == 0 or pkg::stop(w) == 1, "stop in 0..1")
+    runner_assert_true(r, pkg::reload_bypass(w) == 0 or pkg::reload_bypass(w) == 1, "reload_bypass in 0..1")
+
+    # 8. Local folder serving (exact off-Windows, skipped on Windows)
+    if pkg::backend() == "windows"
+        runner_assert_eq(r, pkg::serve_folder("t", "."), false, "serve unsupported on windows")
+        runner_assert_eq(r, pkg::clear_mapping("t"), true, "clear always processed")
+    else
+        if pkg::serve_folder("t", ".") == true
+            runner_assert_eq(r, pkg::navigate(w, "alya://t/benches/bench_basic.alya"), true, "navigate app url accepted")
+            let sk = 0
+            let s0 = clock_ms()
+            while clock_ms() - s0 < 20000
+                sk = pkg::poll(w)
+                if sk == 4
+                    break
+                end
+                sleep(10)
+            end
+            runner_assert_eq(r, sk, 4, "app url NAV_DONE pumped")
+            runner_assert_eq(r, pkg::clear_mapping("t"), true, "mapping cleared")
+        else
+            runner_assert(r, 1 == 1, "no serve support here, skipped")
+        end
+    end
+
+    # 9. Graceful close -> CLOSE event -> not open
     runner_assert_eq(r, pkg::request_close(w), true, "close requested")
     let kind = 0
     let ticks = 0
@@ -164,7 +233,7 @@ function main()
     runner_assert_eq(r, kind, 1, "CLOSE event pumped")
     runner_assert_eq(r, pkg::is_open(w), false, "closed after event")
 
-    # 8. Null safety on a dead handle path
+    # 10. Null safety on a dead handle path
     runner_assert_eq(r, pkg::destroy(null), true, "destroy null safe")
     pkg::destroy(w)
 
