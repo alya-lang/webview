@@ -183,6 +183,13 @@ main()
 | `set_images(win, enabled)` | `pub function` | Image loading on/off (`1` when applied). |
 | `set_webgl(win, enabled)` | `pub function` | WebGL on/off (`1` when applied). |
 | `set_charset(win, cs)` | `pub function` | Default text encoding (`1` when applied). |
+| `set_muted(win, muted)` | `pub function` | Mutes (`1`) / unmutes (`0`) all page media. |
+| `is_muted(win)` | `pub function` | `1` when no audible media is playing. |
+| `set_volume(win, level)` | `pub function` | Page media volume (`0..100`). |
+| `on_error(win)` | `pub function` | Installs page error forwarding (collect with `fetch_message`). |
+| `capture_console(win, enabled)` | `pub function` | Captures page console output (`1`) or restores it (`0`). |
+| `fetch_message(win)` | `pub function` | Pops the oldest inbox message (`""` when empty). |
+| `is_js_error(text)` / `is_console(text)` | `pub function` | Classifies inbox payloads. |
 | `open_external(url)` | `pub function` | Opens a URL in the default browser; `1` when attempted (opt-in fallback). |
 | `destroy(win)` | `pub function` | Destroys a handle (null-safe, always `1`). |
 | `show(win)` / `hide(win)` | `pub function` | Shows or hides a window (null-safe). |

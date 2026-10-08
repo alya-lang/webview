@@ -363,8 +363,10 @@ static HRESULT STDMETHODCALLTYPE wv_on_nav_done(void *self, void *sender,
             wv_wide_to_utf8_into(w->url, sizeof(w->url), src);
         }
         wv_free_str(src);
-        wv_push(w, ALYA_WEBVIEW_EVENT_NAV_DONE);
-        (void)ok;
+        // ok reflects NavigationCompleted::IsSuccess (slot 3). A zero
+        // verdict means the load failed (DNS, refused, aborted).
+        wv_push(w, ok ? ALYA_WEBVIEW_EVENT_NAV_DONE
+                      : ALYA_WEBVIEW_EVENT_NAV_FAILED);
     }
     return S_OK;
 }

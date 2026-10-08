@@ -25,6 +25,7 @@
 #define ALYA_WEBVIEW_EVENT_NAV_DONE 4
 #define ALYA_WEBVIEW_EVENT_TITLE 5
 #define ALYA_WEBVIEW_EVENT_MESSAGE 6
+#define ALYA_WEBVIEW_EVENT_NAV_FAILED 7
 
 /* JS eval states returned by alya_webview_eval_state(). */
 #define ALYA_WEBVIEW_EVAL_PENDING 0

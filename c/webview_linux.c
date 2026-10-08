@@ -449,7 +449,7 @@ static void wv_on_load_changed(GtkWidget *view, int event, void *data) {
         wv_push(w, ALYA_WEBVIEW_EVENT_NAV_DONE);
     } else if (event == 4) { // WEBKIT_LOAD_FAILED
         wv_sync_url_title(w);
-        wv_push(w, ALYA_WEBVIEW_EVENT_NAV_DONE);
+        wv_push(w, ALYA_WEBVIEW_EVENT_NAV_FAILED);
     }
 }
 
@@ -650,6 +650,8 @@ const char *alya_webview_profile_path(alya_webview_t *w) {
     }
     return w->profile;
 }
+
+static void wv_register_scheme_on(void *ctx);
 
 static GtkWidget *wv_new_view(int priv) {
     void *ctx = NULL;

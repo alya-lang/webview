@@ -50,6 +50,11 @@ typedef struct NSRect {
     double h;
 } NSRect;
 
+typedef struct NSPoint {
+    double x;
+    double y;
+} NSPoint;
+
 typedef struct NSSize {
     double w;
     double h;
@@ -244,7 +249,7 @@ static void wv_did_fail(id self, SEL cmd, id webview, id navigation,
     }
     (void)webview;
     wv_sync_url(w);
-    wv_push(w, ALYA_WEBVIEW_EVENT_NAV_DONE);
+    wv_push(w, ALYA_WEBVIEW_EVENT_NAV_FAILED);
 }
 
 static void wv_did_message(id self, SEL cmd, id controller, id message) {

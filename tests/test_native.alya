@@ -113,6 +113,63 @@ function main()
         runner_assert_true(r, len(pkg::referrer(w)) >= 0, "referrer is a string")
         let ol = pkg::is_online(w)
         runner_assert_true(r, ol == 0 or ol == 1, "is_online in 0..1")
+
+        # Sound: submit-only on this media-free page, state read tolerant.
+        runner_assert_eq(r, pkg::set_muted(w, 1), true, "set_muted submitted")
+        let mu = pkg::is_muted(w)
+        runner_assert_true(r, mu == 0 or mu == 1, "is_muted in 0..1")
+        runner_assert_eq(r, pkg::set_volume(w, 50), true, "set_volume submitted")
+        runner_assert_eq(r, pkg::set_volume(w, 999), true, "set_volume clamps high")
+        runner_assert_eq(r, pkg::set_volume(w, -5), true, "set_volume clamps low")
+        runner_assert_eq(r, pkg::set_muted(w, 0), true, "unmute submitted")
+
+        # Diagnostics: install hooks, fire console + async error, collect.
+        runner_assert_eq(r, pkg::on_error(w), true, "error hook submitted")
+        runner_assert_eq(r, pkg::capture_console(w, 1), true, "console hook submitted")
+        pkg::eval(w, "console.log('probe-console-1')")
+        let gotc = false
+        let c0 = clock_ms()
+        while clock_ms() - c0 < 20000
+            pkg::poll(w)
+            let cm = pkg::fetch_message(w)
+            if cm != "" and pkg::is_console(cm) == true
+                gotc = true
+            end
+            if gotc == true
+                break
+            end
+            sleep(10)
+        end
+        runner_assert_eq(r, gotc, true, "console entry forwarded")
+        pkg::eval(w, "setTimeout(function(){throw new Error('probe-err-1')},0)")
+        let gote = false
+        let e0 = clock_ms()
+        while clock_ms() - e0 < 20000
+            pkg::poll(w)
+            let em = pkg::fetch_message(w)
+            if em != "" and pkg::is_js_error(em) == true
+                gote = true
+            end
+            if gote == true
+                break
+            end
+            sleep(10)
+        end
+        runner_assert_eq(r, gote, true, "js error forwarded")
+        runner_assert_eq(r, pkg::capture_console(w, 0), true, "console hook removed")
+
+        # Failed navigation surfaces as NAV_FAILED (kind 7).
+        runner_assert_eq(r, pkg::navigate(w, "http://invalid.invalid/"), true, "bad nav accepted")
+        let fk = 0
+        let f0 = clock_ms()
+        while clock_ms() - f0 < 20000
+            fk = pkg::poll(w)
+            if fk == 7
+                break
+            end
+            sleep(10)
+        end
+        runner_assert_eq(r, fk, 7, "NAV_FAILED event pumped")
         runner_assert_eq(r, pkg::can_back(w), false, "fresh page cannot go back")
         runner_assert_eq(r, pkg::post_message(w, "{\"ping\":1}"), true, "post_message delivered")
     else

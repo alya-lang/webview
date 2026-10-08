@@ -343,6 +343,46 @@ pub function print_page(win) -> int
     return native_browser_print_page(win)
 end
 
+## Mutes (`1`) or unmutes (`0`) all page media elements.
+pub function set_muted(win, muted: int) -> int
+    return native_browser_set_muted(win, muted)
+end
+
+## Returns `1` when no audible media is playing.
+pub function is_muted(win) -> int
+    return native_browser_is_muted(win)
+end
+
+## Sets all page media volumes (`0..100`).
+pub function set_volume(win, level: int) -> int
+    return native_browser_set_volume(win, level)
+end
+
+## Installs page error forwarding (see `fetch_message` + `is_js_error`).
+pub function on_error(win) -> int
+    return native_browser_on_error(win)
+end
+
+## Captures page console output (`1`) or restores it (`0`).
+pub function capture_console(win, enabled: int) -> int
+    return native_browser_capture_console(win, enabled)
+end
+
+## Pops the oldest inbox message (`""` when empty).
+pub function fetch_message(win) -> string
+    return native_browser_fetch_message(win)
+end
+
+## Returns `1` when a message payload is a forwarded JS error.
+pub function is_js_error(text: string) -> int
+    return native_browser_is_js_error(text)
+end
+
+## Returns `1` when a message payload is a captured console entry.
+pub function is_console(text: string) -> int
+    return native_browser_is_console(text)
+end
+
 ## Destroys a browser window handle (null-safe).
 pub function destroy(win) -> int
     return native_browser_close_handle(win)

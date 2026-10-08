@@ -18,7 +18,8 @@ pub enum WebviewEventKind
     NavStart = 3,
     NavDone = 4,
     Title = 5,
-    Message = 6
+    Message = 6,
+    NavFailed = 7
 end
 
 ## JS eval completion states, mirroring `ALYA_WEBVIEW_EVAL_*`.

@@ -631,6 +631,115 @@ pub function native_browser_print_page(win) -> int
     return native_browser_eval(win, "window.print()")
 end
 
+# ───────────────────────────────────────────────────────────────
+# Sound (uniform media-element control, all engines)
+# ───────────────────────────────────────────────────────────────
+
+## Mutes (`1`) or unmutes (`0`) all page media elements.
+## Returns `1` when submitted.
+pub function native_browser_set_muted(win, muted: int) -> int
+    if win is null
+        return false
+    end
+    let flag = "false"
+    if muted != 0
+        flag = "true"
+    end
+    return native_browser_eval(win, "document.querySelectorAll('audio,video').forEach(function(m){m.muted=" + flag + "})")
+end
+
+## Returns `1` when no audible media is playing (all elements muted
+## or none present), `0` when any element is unmuted.
+pub function native_browser_is_muted(win) -> int
+    if win is null
+        return false
+    end
+    if native_browser_eval_wait(win, "Array.prototype.every.call(document.querySelectorAll('audio,video'),function(m){return m.muted})", 200) == "true"
+        return true
+    end
+    return false
+end
+
+## Sets all page media volumes (`0..100`). Returns `1` when submitted.
+pub function native_browser_set_volume(win, level: int) -> int
+    if win is null
+        return false
+    end
+    if level < 0
+        level = 0
+    end
+    if level > 100
+        level = 100
+    end
+    return native_browser_eval(win, "document.querySelectorAll('audio,video').forEach(function(m){m.volume=(" + str(level) + "/100)})")
+end
+
+# ───────────────────────────────────────────────────────────────
+# Page diagnostics (JS errors + console, via the page inbox)
+# ───────────────────────────────────────────────────────────────
+# Hooks push JSON strings into window.__alyaInbox; fetch_message()
+# pops them oldest-first. Payloads carry an `alya-js-error:` or
+# `alya-console:` prefix; use is_js_error()/is_console() to classify.
+# Unlike the native MESSAGE events this channel needs no per-engine
+# subscription and behaves identically on all backends.
+
+## Installs page error forwarding (JS exceptions, promise rejections,
+## resource errors). Collect with `fetch_message()` + `is_js_error()`.
+## Returns `1` when submitted.
+pub function native_browser_on_error(win) -> int
+    if win is null
+        return false
+    end
+    let js = "if(!window.__alyaErrHook){window.__alyaErrHook=1;window.__alyaInbox=[];"
+    js += "window.addEventListener('error',function(e){var m=e.message||((e.error&&e.error.stack)||'unknown');"
+    js += "window.__alyaInbox.push('alya-js-error:'+JSON.stringify({message:String(m),source:String(e.filename||''),line:(e.lineno||0)}));},true);"
+    js += "window.addEventListener('unhandledrejection',function(e){"
+    js += "window.__alyaInbox.push('alya-js-error:'+JSON.stringify({message:String(((e.reason&&e.reason.stack)||e.reason||'rejection')),source:'promise',line:0}));});}"
+    return native_browser_eval(win, js)
+end
+
+## Captures page console output (`1`) or restores it (`0`). Collect
+## with `fetch_message()` + `is_console()`. Returns `1` when submitted.
+pub function native_browser_capture_console(win, enabled: int) -> int
+    if win is null
+        return false
+    end
+    if enabled == 0
+        return native_browser_eval(win, "if(window.__alyaConsoleHook){['log','info','warn','error','debug'].forEach(function(lv){console[lv]=window.__alyaConsoleOrig[lv]});window.__alyaConsoleHook=0;}")
+    end
+    let js = "if(!window.__alyaConsoleHook){window.__alyaConsoleHook=1;window.__alyaConsoleOrig={};window.__alyaInbox=window.__alyaInbox||[];"
+    js += "['log','info','warn','error','debug'].forEach(function(lv){window.__alyaConsoleOrig[lv]=console[lv];"
+    js += "console[lv]=function(){var a=Array.prototype.slice.call(arguments).map(function(x){try{return typeof x==='string'?x:JSON.stringify(x)}catch(e){return String(x)}});"
+    js += "try{window.__alyaInbox.push('alya-console:'+JSON.stringify({level:lv,text:a.join(' ')}))}catch(e){};"
+    js += "return window.__alyaConsoleOrig[lv].apply(console,arguments)};});}"
+    return native_browser_eval(win, js)
+end
+
+## Pops the oldest inbox message (`""` when empty). See `on_error()`
+## and `capture_console()`; classify with is_js_error()/is_console().
+pub function native_browser_fetch_message(win) -> string
+    if win is null
+        return ""
+    end
+    return json_unquote(native_browser_eval_wait(win, "(function(){var q=window.__alyaInbox||[];var m=q.shift();return (m===undefined?'':m)})()", 200))
+end
+
+## Returns `1` when a message payload is a forwarded JS error.
+pub function native_browser_is_js_error(text: string) -> int
+    if text is null
+        return false
+    end
+    return str::starts_with(text, "alya-js-error:")
+end
+
+## Returns `1` when a message payload is a captured console entry.
+pub function native_browser_is_console(text: string) -> int
+    if text is null
+        return false
+    end
+    return str::starts_with(text, "alya-console:")
+end
+
 ## Returns the configured profile folder (`""` when default).
 pub function native_browser_data_dir() -> string
     let d = alya_webview_get_data_dir()
