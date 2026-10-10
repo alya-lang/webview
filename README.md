@@ -144,6 +144,11 @@ main()
 | `set_fullscreen(win, enabled)` | `pub function` | Exclusive fullscreen (restores on disable). |
 | `focus(win)` | `pub function` | Focuses the window and its page. |
 | `minimize(win)` / `restore(win)` | `pub function` | Minimizes / restores the window. |
+| `maximize(win)` | `pub function` | Maximizes the window (work-area fill, taskbar stays visible). |
+| `set_minimize_button(win, enabled)` | `pub function` | Enables/disables the minimize title-bar button. |
+| `set_maximize_button(win, enabled)` | `pub function` | Enables/disables the maximize/zoom title-bar button. |
+| `set_close_button(win, enabled)` | `pub function` | Enables/disables the close title-bar button. |
+| `set_resizable(win, enabled)` | `pub function` | Enables/disables interactive resizing. |
 | `set_position(win, x, y)` | `pub function` | Moves the window to screen pixels. |
 | `stop(win)` | `pub function` | Stops the current load. |
 | `reload_bypass(win)` | `pub function` | Reloads bypassing the cache. |

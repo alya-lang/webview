@@ -134,10 +134,21 @@ int alya_webview_set_fullscreen(alya_webview_t *w, int enabled);
 /* Window control (all null-safe; 1 when accepted, 0 otherwise). */
 int alya_webview_focus(alya_webview_t *w);
 int alya_webview_minimize(alya_webview_t *w);
+int alya_webview_maximize(alya_webview_t *w);
 int alya_webview_restore(alya_webview_t *w);
 int alya_webview_set_position(alya_webview_t *w, int x, int y);
 int alya_webview_stop(alya_webview_t *w);
 int alya_webview_reload_bypass(alya_webview_t *w);
+
+/* Window chrome. Each toggle returns 1 when applied, 0 otherwise.
+ * - minimize/maximize/close_button: enable/disable the title-bar
+ *   buttons (greyed or removed depending on the platform).
+ * - resizable: enable/disable interactive resizing (thick frame).
+ * restore() brings back minimized or maximized windows. */
+int alya_webview_set_minimize_button(alya_webview_t *w, int enabled);
+int alya_webview_set_maximize_button(alya_webview_t *w, int enabled);
+int alya_webview_set_close_button(alya_webview_t *w, int enabled);
+int alya_webview_set_resizable(alya_webview_t *w, int enabled);
 
 /* Local folder hosting under the app scheme (alya://host/path).
  * macOS installs the scheme handler at window creation, so mappings

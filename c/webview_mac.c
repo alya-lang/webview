@@ -1842,6 +1842,18 @@ int alya_webview_minimize(alya_webview_t *w) {
     return 1;
 }
 
+int alya_webview_maximize(alya_webview_t *w) {
+    id pool;
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    pool = wv_pool_push();
+    wv_send1(void, w->win, wv_sel("zoom:"), NULL);
+    wv_pool_pop(pool);
+    w->is_fullscreen = 0; // zoom and fullscreen are distinct states
+    return 1;
+}
+
 int alya_webview_restore(alya_webview_t *w) {
     id pool;
     if (w == NULL || w->win == NULL) {
@@ -1903,6 +1915,54 @@ int alya_webview_reload_bypass(alya_webview_t *w) {
     }
     pool = wv_pool_push();
     wv_send0(void, w->view, wv_sel("reloadFromOrigin"));
+    wv_pool_pop(pool);
+    return 1;
+}
+
+static int wv_set_std_button(alya_webview_t *w, long kind, int enabled) {
+    id pool;
+    id btn;
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    pool = wv_pool_push();
+    // standardWindowButton: 0 = close, 1 = minimize, 2 = zoom.
+    btn = wv_send1(id, w->win, wv_sel("standardWindowButton:"), kind);
+    if (btn != NULL) {
+        wv_send1(void, btn, wv_sel("setEnabled:"),
+                 (BOOL)(enabled ? 1 : 0));
+    }
+    wv_pool_pop(pool);
+    return 1;
+}
+
+int alya_webview_set_minimize_button(alya_webview_t *w, int enabled) {
+    return wv_set_std_button(w, 1, enabled);
+}
+
+int alya_webview_set_maximize_button(alya_webview_t *w, int enabled) {
+    return wv_set_std_button(w, 2, enabled);
+}
+
+int alya_webview_set_close_button(alya_webview_t *w, int enabled) {
+    return wv_set_std_button(w, 0, enabled);
+}
+
+int alya_webview_set_resizable(alya_webview_t *w, int enabled) {
+    id pool;
+    unsigned long mask;
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    // NSWindowStyleMaskResizable = 8.
+    pool = wv_pool_push();
+    mask = wv_send0(unsigned long, w->win, wv_sel("styleMask"));
+    if (enabled) {
+        mask |= 8UL;
+    } else {
+        mask &= ~8UL;
+    }
+    wv_send1(void, w->win, wv_sel("setStyleMask:"), mask);
     wv_pool_pop(pool);
     return 1;
 }

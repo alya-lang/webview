@@ -65,6 +65,9 @@ struct alya_webview {
     int api;
     int allow_menu;  // native context menu policy (default 1)
     int block_keys;  // shortcut-blocking user script installed
+    int allow_min;   // chrome toggles for the WM function mask (def 1)
+    int allow_max;
+    int allow_close;
     int width;
     int height;
     int eval_state;
@@ -145,6 +148,13 @@ WV_DECL(void, gtk_window_iconify, GtkWidget *w);
 WV_DECL(void, gtk_window_deiconify, GtkWidget *w);
 WV_DECL(void, gtk_window_present, GtkWidget *w);
 WV_DECL(void, gtk_window_move, GtkWidget *w, int x, int y);
+WV_DECL(void, gtk_window_set_decorated, GtkWidget *w, int v);
+WV_DECL(void, gtk_window_set_deletable, GtkWidget *w, int v);
+WV_DECL(void, gtk_window_set_resizable, GtkWidget *w, int v);
+WV_DECL(void, gtk_window_set_keep_above, GtkWidget *w, int v);
+WV_DECL(void, gtk_window_maximize, GtkWidget *w);
+WV_DECL(void, gtk_window_unmaximize, GtkWidget *w);
+WV_DECL(void, gdk_window_set_functions, void *win, unsigned int funcs);
 WV_DECL(void *, g_memory_input_stream_new_from_data, const void *data,
         long long len, void *destroy);
 WV_DECL(unsigned int, webkit_get_major_version, void);
@@ -368,6 +378,13 @@ static int wv_load_all(void) {
     WV_LOAD(wv_h_gtk, gtk_window_deiconify);
     WV_LOAD(wv_h_gtk, gtk_window_present);
     WV_LOAD(wv_h_gtk, gtk_window_move);
+    WV_LOAD(wv_h_gtk, gtk_window_set_decorated);
+    WV_LOAD(wv_h_gtk, gtk_window_set_deletable);
+    WV_LOAD(wv_h_gtk, gtk_window_set_resizable);
+    WV_LOAD(wv_h_gtk, gtk_window_set_keep_above);
+    WV_LOAD(wv_h_gtk, gtk_window_maximize);
+    WV_LOAD(wv_h_gtk, gtk_window_unmaximize);
+    WV_LOAD(wv_h_gtk, gdk_window_set_functions);
     WV_LOAD(wv_h_gio, g_memory_input_stream_new_from_data);
 
     ok = 1;
@@ -761,6 +778,9 @@ static alya_webview_t *wv_create_inner(const char *title, int width,
     }
     w->open = 1;
     w->allow_menu = 1;
+    w->allow_min = 1;
+    w->allow_max = 1;
+    w->allow_close = 1;
     w->width = width;
     w->height = height;
     wv_copy(w->title, sizeof(w->title), title);
@@ -1792,6 +1812,7 @@ int alya_webview_restore(alya_webview_t *w) {
     if (w == NULL || w->win == NULL) {
         return 0;
     }
+    p_gtk_window_unmaximize(w->win);
     p_gtk_window_deiconify(w->win);
     p_gtk_window_present(w->win);
     return 1;
@@ -1818,6 +1839,78 @@ int alya_webview_reload_bypass(alya_webview_t *w) {
         return 0;
     }
     p_webkit_web_view_reload_bypass_cache(w->view);
+    return 1;
+}
+
+// GdkWMFunction bits (stable since GTK2).
+#define WV_GDK_FUNC_MOVE 4
+#define WV_GDK_FUNC_MINIMIZE 8
+#define WV_GDK_FUNC_MAXIMIZE 16
+#define WV_GDK_FUNC_CLOSE 32
+
+static void wv_apply_chrome(alya_webview_t *w) {
+    void *gwin;
+    unsigned int funcs;
+    if (w == NULL || w->win == NULL) {
+        return;
+    }
+    funcs = WV_GDK_FUNC_MOVE;
+    if (w->allow_min) {
+        funcs |= WV_GDK_FUNC_MINIMIZE;
+    }
+    if (w->allow_max) {
+        funcs |= WV_GDK_FUNC_MAXIMIZE;
+    }
+    if (w->allow_close) {
+        funcs |= WV_GDK_FUNC_CLOSE;
+    }
+    gwin = p_gtk_widget_get_window(w->win);
+    if (gwin != NULL) {
+        p_gdk_window_set_functions(gwin, funcs);
+    }
+    p_gtk_window_set_deletable(w->win, w->allow_close ? 1 : 0);
+}
+
+int alya_webview_set_minimize_button(alya_webview_t *w, int enabled) {
+    if (w == NULL) {
+        return 0;
+    }
+    w->allow_min = enabled ? 1 : 0;
+    wv_apply_chrome(w);
+    return 1;
+}
+
+int alya_webview_set_maximize_button(alya_webview_t *w, int enabled) {
+    if (w == NULL) {
+        return 0;
+    }
+    w->allow_max = enabled ? 1 : 0;
+    wv_apply_chrome(w);
+    return 1;
+}
+
+int alya_webview_set_close_button(alya_webview_t *w, int enabled) {
+    if (w == NULL) {
+        return 0;
+    }
+    w->allow_close = enabled ? 1 : 0;
+    wv_apply_chrome(w);
+    return 1;
+}
+
+int alya_webview_set_resizable(alya_webview_t *w, int enabled) {
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    p_gtk_window_set_resizable(w->win, enabled ? 1 : 0);
+    return 1;
+}
+
+int alya_webview_maximize(alya_webview_t *w) {
+    if (w == NULL || w->win == NULL) {
+        return 0;
+    }
+    p_gtk_window_maximize(w->win);
     return 1;
 }
 

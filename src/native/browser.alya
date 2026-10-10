@@ -89,12 +89,17 @@ extern "C" from "webview"
     function alya_webview_set_fullscreen(w: ptr, enabled: i32) -> i32
     function alya_webview_focus(w: ptr) -> i32
     function alya_webview_minimize(w: ptr) -> i32
+    function alya_webview_maximize(w: ptr) -> i32
     function alya_webview_restore(w: ptr) -> i32
     function alya_webview_set_position(w: ptr, x: i32, y: i32) -> i32
     function alya_webview_stop(w: ptr) -> i32
     function alya_webview_reload_bypass(w: ptr) -> i32
     function alya_webview_serve_folder(host: str, folder: str) -> i32
     function alya_webview_clear_mapping(host: str) -> i32
+    function alya_webview_set_minimize_button(w: ptr, enabled: i32) -> i32
+    function alya_webview_set_maximize_button(w: ptr, enabled: i32) -> i32
+    function alya_webview_set_close_button(w: ptr, enabled: i32) -> i32
+    function alya_webview_set_resizable(w: ptr, enabled: i32) -> i32
 end
 
 ## Returns the embeddable engine version (`""` when not probeable).
@@ -384,6 +389,15 @@ pub function native_browser_minimize(win) -> int
     return alya_webview_minimize(win)
 end
 
+## Maximizes the window (work-area fill; taskbar stays visible).
+## Returns `1` when accepted.
+pub function native_browser_maximize(win) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_maximize(win)
+end
+
 ## Restores a minimized window. Returns `1` when accepted.
 pub function native_browser_restore(win) -> int
     if win is null
@@ -434,6 +448,38 @@ pub function native_browser_clear_mapping(host: string) -> int
         host = ""
     end
     return alya_webview_clear_mapping(host)
+end
+
+## Enables/disables the minimize title-bar button. Returns `1` when applied.
+pub function native_browser_set_minimize_button(win, enabled: int) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_set_minimize_button(win, enabled)
+end
+
+## Enables/disables the maximize/zoom title-bar button. Returns `1` when applied.
+pub function native_browser_set_maximize_button(win, enabled: int) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_set_maximize_button(win, enabled)
+end
+
+## Enables/disables the close title-bar button. Returns `1` when applied.
+pub function native_browser_set_close_button(win, enabled: int) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_set_close_button(win, enabled)
+end
+
+## Enables/disables interactive resizing. Returns `1` when applied.
+pub function native_browser_set_resizable(win, enabled: int) -> int
+    if win is null
+        return false
+    end
+    return alya_webview_set_resizable(win, enabled)
 end
 
 # ───────────────────────────────────────────────────────────────

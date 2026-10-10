@@ -208,6 +208,11 @@ pub function minimize(win) -> int
     return native_browser_minimize(win)
 end
 
+## Maximizes the window (work-area fill; taskbar stays visible).
+pub function maximize(win) -> int
+    return native_browser_maximize(win)
+end
+
 ## Restores a minimized window.
 pub function restore(win) -> int
     return native_browser_restore(win)
@@ -236,6 +241,26 @@ end
 ## Removes a folder mapping (`""` clears all).
 pub function clear_mapping(host: string) -> int
     return native_browser_clear_mapping(host)
+end
+
+## Enables/disables the minimize title-bar button.
+pub function set_minimize_button(win, enabled: int) -> int
+    return native_browser_set_minimize_button(win, enabled)
+end
+
+## Enables/disables the maximize/zoom title-bar button.
+pub function set_maximize_button(win, enabled: int) -> int
+    return native_browser_set_maximize_button(win, enabled)
+end
+
+## Enables/disables the close title-bar button.
+pub function set_close_button(win, enabled: int) -> int
+    return native_browser_set_close_button(win, enabled)
+end
+
+## Enables/disables interactive resizing.
+pub function set_resizable(win, enabled: int) -> int
+    return native_browser_set_resizable(win, enabled)
 end
 
 ## Finds text in the page; returns `1` when found.

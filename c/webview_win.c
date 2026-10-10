@@ -47,6 +47,11 @@ struct alya_webview {
     char profile[512]; // actual user-data dir ("" when engine-less)
     LONG_PTR orig_style; // window style at creation (borderless restore)
     LONG_PTR orig_exstyle; // extended style at creation
+    int32_t allow_min; // title-bar chrome toggles (default 1)
+    int32_t allow_max;
+    int32_t allow_close;
+    int32_t allow_resize;
+    int32_t borderless; // chromeless window state
     int fs_saved; // fullscreen geometry stash valid
     int fs_x;
     int fs_y;
@@ -124,6 +129,8 @@ static void wv_wide_to_utf8_into(char *dst, size_t cap, const wchar_t *s) {
         dst[0] = '\0';
     }
 }
+
+static int wv_apply_chrome(alya_webview_t *w);
 
 static void wv_push(alya_webview_t *w, int kind) {
     int32_t next;
@@ -884,6 +891,10 @@ static alya_webview_t *wv_create_inner(const char *title, int width,
         return NULL;
     }
     w->open = 1;
+    w->allow_min = 1;
+    w->allow_max = 1;
+    w->allow_close = 1;
+    w->allow_resize = 1;
     w->width = width;
     w->height = height;
     wv_copy(w->title, sizeof(w->title), title);
@@ -1551,21 +1562,11 @@ double alya_webview_get_zoom(alya_webview_t *w) {
 }
 
 int alya_webview_set_borderless(alya_webview_t *w, int enabled) {
-    LONG_PTR st;
-    if (w == NULL || w->hwnd == NULL) {
+    if (w == NULL) {
         return 0;
     }
-    st = GetWindowLongPtrW(w->hwnd, GWL_STYLE);
-    if (enabled) {
-        st &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX |
-                 WS_MAXIMIZEBOX | WS_SYSMENU);
-    } else {
-        st = w->orig_style;
-    }
-    SetWindowLongPtrW(w->hwnd, GWL_STYLE, st);
-    SetWindowPos(w->hwnd, NULL, 0, 0, 0, 0,
-                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
-    return 1;
+    w->borderless = enabled ? 1 : 0;
+    return wv_apply_chrome(w);
 }
 
 int alya_webview_set_topmost(alya_webview_t *w, int enabled) {
@@ -1671,6 +1672,74 @@ int alya_webview_minimize(alya_webview_t *w) {
     }
     ShowWindow(w->hwnd, SW_MINIMIZE);
     return 1;
+}
+
+int alya_webview_maximize(alya_webview_t *w) {
+    if (w == NULL || w->hwnd == NULL) {
+        return 0;
+    }
+    ShowWindow(w->hwnd, SW_MAXIMIZE);
+    return 1;
+}
+
+static int wv_apply_chrome(alya_webview_t *w) {
+    LONG_PTR st;
+    if (w == NULL || w->hwnd == NULL) {
+        return 0;
+    }
+    // Rebuild from the creation style so toggles compose.
+    st = w->orig_style;
+    if (!w->allow_min) {
+        st &= ~(LONG_PTR)WS_MINIMIZEBOX;
+    }
+    if (!w->allow_max) {
+        st &= ~(LONG_PTR)WS_MAXIMIZEBOX;
+    }
+    if (!w->allow_close) {
+        st &= ~(LONG_PTR)WS_SYSMENU;
+    }
+    if (!w->allow_resize) {
+        st &= ~(LONG_PTR)WS_THICKFRAME;
+    }
+    if (w->borderless) {
+        st &= ~(WS_CAPTION | WS_THICKFRAME);
+    }
+    SetWindowLongPtrW(w->hwnd, GWL_STYLE, st);
+    SetWindowPos(w->hwnd, NULL, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+    return 1;
+}
+
+int alya_webview_set_minimize_button(alya_webview_t *w, int enabled) {
+    if (w == NULL) {
+        return 0;
+    }
+    w->allow_min = enabled ? 1 : 0;
+    return wv_apply_chrome(w);
+}
+
+int alya_webview_set_maximize_button(alya_webview_t *w, int enabled) {
+    if (w == NULL) {
+        return 0;
+    }
+    w->allow_max = enabled ? 1 : 0;
+    return wv_apply_chrome(w);
+}
+
+int alya_webview_set_close_button(alya_webview_t *w, int enabled) {
+    if (w == NULL) {
+        return 0;
+    }
+    w->allow_close = enabled ? 1 : 0;
+    return wv_apply_chrome(w);
+}
+
+int alya_webview_set_resizable(alya_webview_t *w, int enabled) {
+    if (w == NULL) {
+        return 0;
+    }
+    w->allow_resize = enabled ? 1 : 0;
+    return wv_apply_chrome(w);
 }
 
 int alya_webview_restore(alya_webview_t *w) {
