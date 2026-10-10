@@ -128,6 +128,8 @@ end
 ## Opens a URL in the user's default browser (opt-in fallback for
 ## machines without an embeddable engine). Never blocks.
 ## Returns `1` when the launch was attempted.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function native_browser_open_external(url: string) -> int
     if url is null or url == ""
         return false
@@ -137,6 +139,8 @@ end
 
 ## Opens a private (incognito) window; no persistent profile is kept.
 ## Null when no display or engine is available.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_open_private(title: string, width: int, height: int)
     if title is null or title == ""
         title = "Alya"
@@ -152,6 +156,8 @@ end
 
 ## Sets the profile data folder for subsequently opened windows
 ## (Windows/Linux; ignored on macOS). Empty string resets to default.
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function native_browser_set_data_dir(path: string) -> int
     if path is null
         path = ""
@@ -162,6 +168,8 @@ end
 
 ## Sets extra Chromium switches for subsequently opened windows
 ## (Windows only; ignored elsewhere). Empty string clears them.
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function native_browser_set_extra_args(args: string) -> int
     if args is null
         args = ""
@@ -172,6 +180,8 @@ end
 
 ## Sets the page zoom factor (`1.0` = 100%, range `0.25..5.0`).
 ## Returns `1` when applied (`0` where the backend cannot zoom).
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function native_browser_set_zoom(win, factor: float) -> int
     if win is null
         return false
@@ -180,6 +190,8 @@ pub function native_browser_set_zoom(win, factor: float) -> int
 end
 
 ## Returns the current zoom factor (`0.0` when unknown).
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function native_browser_get_zoom(win) -> float
     if win is null
         return 0.0
@@ -189,6 +201,8 @@ end
 
 ## Moves the synthetic cursor over client pixel (`x`, `y`).
 ## Returns `1` when posted.
+## Requires the `input` feature (default-on).
+@cfg(feature = "input")
 pub function native_browser_mouse_move(win, x: int, y: int) -> int
     if win is null
         return false
@@ -198,6 +212,8 @@ end
 
 ## Presses a mouse button (`0` left, `1` right, `2` middle).
 ## Returns `1` when posted.
+## Requires the `input` feature (default-on).
+@cfg(feature = "input")
 pub function native_browser_mouse_down(win, button: int) -> int
     if win is null
         return false
@@ -207,6 +223,8 @@ end
 
 ## Releases a mouse button (`0` left, `1` right, `2` middle).
 ## Returns `1` when posted.
+## Requires the `input` feature (default-on).
+@cfg(feature = "input")
 pub function native_browser_mouse_up(win, button: int) -> int
     if win is null
         return false
@@ -216,6 +234,8 @@ end
 
 ## Clicks a mouse button (press + release at the cursor position).
 ## Returns `1` when posted.
+## Requires the `input` feature (default-on).
+@cfg(feature = "input")
 pub function native_browser_mouse_click(win, button: int = 0) -> int
     if win is null
         return false
@@ -225,6 +245,8 @@ end
 
 ## Scrolls by (`dx`, `dy`) detents at the cursor position.
 ## Returns `1` when posted.
+## Requires the `input` feature (default-on).
+@cfg(feature = "input")
 pub function native_browser_mouse_wheel(win, dx: int, dy: int) -> int
     if win is null
         return false
@@ -234,6 +256,8 @@ end
 
 ## Presses a key (`code` is platform-native, see `native_browser_key_code`).
 ## Keys need keyboard focus on the page. Returns `1` when posted.
+## Requires the `input` feature (default-on).
+@cfg(feature = "input")
 pub function native_browser_key_down(win, code: int) -> int
     if win is null
         return false
@@ -242,6 +266,8 @@ pub function native_browser_key_down(win, code: int) -> int
 end
 
 ## Releases a key. Returns `1` when posted.
+## Requires the `input` feature (default-on).
+@cfg(feature = "input")
 pub function native_browser_key_up(win, code: int) -> int
     if win is null
         return false
@@ -250,6 +276,8 @@ pub function native_browser_key_up(win, code: int) -> int
 end
 
 ## Taps a key (press + release). Returns `1` when posted.
+## Requires the `input` feature (default-on).
+@cfg(feature = "input")
 pub function native_browser_key_tap(win, code: int) -> int
     if win is null
         return false
@@ -258,6 +286,8 @@ pub function native_browser_key_tap(win, code: int) -> int
 end
 
 ## Commits printable text to the page. Returns `1` when posted.
+## Requires the `input` feature (default-on).
+@cfg(feature = "input")
 pub function native_browser_key_text(win, text: string) -> int
     if win is null
         return false
@@ -271,6 +301,8 @@ end
 ## Maps a key name (`"Enter"`, `"Escape"`, `"Tab"`, `"Backspace"`,
 ## `"Delete"`, `"Left"`, `"Up"`, `"Right"`, `"Down"`, `"Home"`, `"End"`,
 ## `"PageUp"`, `"PageDown"`) to the platform code. `-1` when unknown.
+## Requires the `input` feature (default-on).
+@cfg(feature = "input")
 pub function native_browser_key_code(name: string) -> int
     if name is null or name == ""
         return -1
@@ -280,6 +312,8 @@ end
 
 ## Sets the page base color (`0..255` per channel).
 ## Returns `1` when applied.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_set_background(win, r: int, g: int, b: int, a: int = 255) -> int
     if win is null
         return false
@@ -289,6 +323,8 @@ end
 
 ## Toggles the native context menu (`1` shows, `0` suppresses).
 ## Returns `1` when applied.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_set_context_menu(win, enabled: int) -> int
     if win is null
         return false
@@ -298,6 +334,8 @@ end
 
 ## Toggles in-page shortcut blocking (Ctrl+P, PrintScreen, F12, ...).
 ## Returns `1` when applied.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_set_shortcut_block(win, enabled: int) -> int
     if win is null
         return false
@@ -306,6 +344,8 @@ pub function native_browser_set_shortcut_block(win, enabled: int) -> int
 end
 
 ## Toggles image loading. Returns `1` when applied.
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function native_browser_set_images(win, enabled: int) -> int
     if win is null
         return false
@@ -314,6 +354,8 @@ pub function native_browser_set_images(win, enabled: int) -> int
 end
 
 ## Toggles WebGL. Returns `1` when applied.
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function native_browser_set_webgl(win, enabled: int) -> int
     if win is null
         return false
@@ -322,6 +364,8 @@ pub function native_browser_set_webgl(win, enabled: int) -> int
 end
 
 ## Sets the default text encoding (`"UTF-8"`). Returns `1` when applied.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_set_charset(win, cs: string) -> int
     if win is null
         return false
@@ -333,6 +377,8 @@ pub function native_browser_set_charset(win, cs: string) -> int
 end
 
 ## Drops title bar and borders (reversible). Returns `1` when applied.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_set_borderless(win, enabled: int) -> int
     if win is null
         return false
@@ -341,6 +387,8 @@ pub function native_browser_set_borderless(win, enabled: int) -> int
 end
 
 ## Keeps the window above all others. Returns `1` when applied.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_set_topmost(win, enabled: int) -> int
     if win is null
         return false
@@ -350,6 +398,8 @@ end
 
 ## Sets window opacity (`0.0` invisible .. `1.0` opaque).
 ## Returns `1` when applied.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_set_opacity(win, alpha: float) -> int
     if win is null
         return false
@@ -358,6 +408,8 @@ pub function native_browser_set_opacity(win, alpha: float) -> int
 end
 
 ## Lets input pass to windows below. Returns `1` when applied.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_set_click_through(win, enabled: int) -> int
     if win is null
         return false
@@ -366,6 +418,8 @@ pub function native_browser_set_click_through(win, enabled: int) -> int
 end
 
 ## Toggles exclusive fullscreen. Returns `1` when applied.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_set_fullscreen(win, enabled: int) -> int
     if win is null
         return false
@@ -374,6 +428,8 @@ pub function native_browser_set_fullscreen(win, enabled: int) -> int
 end
 
 ## Focuses the window and its page. Returns `1` when accepted.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_focus(win) -> int
     if win is null
         return false
@@ -382,6 +438,8 @@ pub function native_browser_focus(win) -> int
 end
 
 ## Minimizes the window. Returns `1` when accepted.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_minimize(win) -> int
     if win is null
         return false
@@ -391,6 +449,8 @@ end
 
 ## Maximizes the window (work-area fill; taskbar stays visible).
 ## Returns `1` when accepted.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_maximize(win) -> int
     if win is null
         return false
@@ -399,6 +459,8 @@ pub function native_browser_maximize(win) -> int
 end
 
 ## Restores a minimized window. Returns `1` when accepted.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_restore(win) -> int
     if win is null
         return false
@@ -407,6 +469,8 @@ pub function native_browser_restore(win) -> int
 end
 
 ## Moves the window to screen pixel (`x`, `y`). Returns `1` when accepted.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_set_position(win, x: int, y: int) -> int
     if win is null
         return false
@@ -415,6 +479,8 @@ pub function native_browser_set_position(win, x: int, y: int) -> int
 end
 
 ## Stops the current load. Returns `1` when accepted.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function native_browser_stop(win) -> int
     if win is null
         return false
@@ -423,6 +489,8 @@ pub function native_browser_stop(win) -> int
 end
 
 ## Reloads bypassing the cache. Returns `1` when accepted.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function native_browser_reload_bypass(win) -> int
     if win is null
         return false
@@ -432,6 +500,8 @@ end
 
 ## Serves a local folder under `alya://host/path`. Returns `1` when
 ## registered (on macOS applies to subsequently opened windows).
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function native_browser_serve_folder(host: string, folder: string) -> int
     if host is null or host == ""
         return false
@@ -443,6 +513,8 @@ pub function native_browser_serve_folder(host: string, folder: string) -> int
 end
 
 ## Removes a folder mapping (`""` clears all). Returns `1` when processed.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function native_browser_clear_mapping(host: string) -> int
     if host is null
         host = ""
@@ -451,6 +523,8 @@ pub function native_browser_clear_mapping(host: string) -> int
 end
 
 ## Enables/disables the minimize title-bar button. Returns `1` when applied.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_set_minimize_button(win, enabled: int) -> int
     if win is null
         return false
@@ -459,6 +533,8 @@ pub function native_browser_set_minimize_button(win, enabled: int) -> int
 end
 
 ## Enables/disables the maximize/zoom title-bar button. Returns `1` when applied.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_set_maximize_button(win, enabled: int) -> int
     if win is null
         return false
@@ -467,6 +543,8 @@ pub function native_browser_set_maximize_button(win, enabled: int) -> int
 end
 
 ## Enables/disables the close title-bar button. Returns `1` when applied.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_set_close_button(win, enabled: int) -> int
     if win is null
         return false
@@ -475,6 +553,8 @@ pub function native_browser_set_close_button(win, enabled: int) -> int
 end
 
 ## Enables/disables interactive resizing. Returns `1` when applied.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_set_resizable(win, enabled: int) -> int
     if win is null
         return false
@@ -489,6 +569,8 @@ end
 # limitation); eval results are JSON-encoded (strings arrive quoted).
 
 ## Finds text in the page (`window.find`); returns `1` when found.
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function native_browser_find_text(win, query: string) -> int
     if win is null
         return false
@@ -503,6 +585,8 @@ pub function native_browser_find_text(win, query: string) -> int
 end
 
 ## Returns the page HTML source (`""` when unavailable).
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function native_browser_get_source(win) -> string
     if win is null
         return ""
@@ -511,6 +595,8 @@ pub function native_browser_get_source(win) -> string
 end
 
 ## Returns the rendered page text (`""` when unavailable).
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function native_browser_get_text(win) -> string
     if win is null
         return ""
@@ -519,6 +605,8 @@ pub function native_browser_get_text(win) -> string
 end
 
 ## Returns the document title (`""` when unavailable).
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function native_browser_document_title(win) -> string
     if win is null
         return ""
@@ -527,6 +615,8 @@ pub function native_browser_document_title(win) -> string
 end
 
 ## Returns the current URL (`""` when unavailable).
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function native_browser_current_url(win) -> string
     if win is null
         return ""
@@ -535,6 +625,8 @@ pub function native_browser_current_url(win) -> string
 end
 
 ## Returns the history length (`""` when unavailable).
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function native_browser_history_length(win) -> string
     if win is null
         return ""
@@ -543,6 +635,8 @@ pub function native_browser_history_length(win) -> string
 end
 
 ## Returns the navigator user-agent (`""` when unavailable).
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function native_browser_user_agent(win) -> string
     if win is null
         return ""
@@ -551,6 +645,8 @@ pub function native_browser_user_agent(win) -> string
 end
 
 ## Returns the viewport width in CSS pixels (`""` when unavailable).
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function native_browser_viewport_width(win) -> string
     if win is null
         return ""
@@ -559,6 +655,8 @@ pub function native_browser_viewport_width(win) -> string
 end
 
 ## Returns the viewport height in CSS pixels (`""` when unavailable).
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function native_browser_viewport_height(win) -> string
     if win is null
         return ""
@@ -567,6 +665,8 @@ pub function native_browser_viewport_height(win) -> string
 end
 
 ## Returns the document character set (`""` when unavailable).
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function native_browser_doc_charset(win) -> string
     if win is null
         return ""
@@ -575,6 +675,8 @@ pub function native_browser_doc_charset(win) -> string
 end
 
 ## Returns the page language (`""` when unavailable).
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function native_browser_page_language(win) -> string
     if win is null
         return ""
@@ -583,6 +685,8 @@ pub function native_browser_page_language(win) -> string
 end
 
 ## Returns `1` when the page reports itself online.
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function native_browser_is_online(win) -> int
     if win is null
         return false
@@ -594,6 +698,8 @@ pub function native_browser_is_online(win) -> int
 end
 
 ## Returns the referrer (`""` when none).
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function native_browser_referrer(win) -> string
     if win is null
         return ""
@@ -602,6 +708,8 @@ pub function native_browser_referrer(win) -> string
 end
 
 ## Reads a localStorage value (JSON-encoded, `""` when missing).
+## Requires the `storage_media` feature (default-on).
+@cfg(feature = "storage_media")
 pub function native_browser_storage_get(win, key: string) -> string
     if win is null
         return ""
@@ -613,6 +721,8 @@ pub function native_browser_storage_get(win, key: string) -> string
 end
 
 ## Writes a localStorage value; returns `1` when submitted.
+## Requires the `storage_media` feature (default-on).
+@cfg(feature = "storage_media")
 pub function native_browser_storage_set(win, key: string, value: string) -> int
     if win is null
         return false
@@ -627,6 +737,8 @@ pub function native_browser_storage_set(win, key: string, value: string) -> int
 end
 
 ## Removes a localStorage value; returns `1` when submitted.
+## Requires the `storage_media` feature (default-on).
+@cfg(feature = "storage_media")
 pub function native_browser_storage_remove(win, key: string) -> int
     if win is null
         return false
@@ -638,6 +750,8 @@ pub function native_browser_storage_remove(win, key: string) -> int
 end
 
 ## Scrolls to document pixel (`x`, `y`); returns `1` when submitted.
+## Requires the `storage_media` feature (default-on).
+@cfg(feature = "storage_media")
 pub function native_browser_scroll_to(win, x: int, y: int) -> int
     if win is null
         return false
@@ -646,6 +760,8 @@ pub function native_browser_scroll_to(win, x: int, y: int) -> int
 end
 
 ## Scrolls by (`dx`, `dy`) pixels; returns `1` when submitted.
+## Requires the `storage_media` feature (default-on).
+@cfg(feature = "storage_media")
 pub function native_browser_scroll_by(win, dx: int, dy: int) -> int
     if win is null
         return false
@@ -654,6 +770,8 @@ pub function native_browser_scroll_by(win, dx: int, dy: int) -> int
 end
 
 ## Scrolls to the top; returns `1` when submitted.
+## Requires the `storage_media` feature (default-on).
+@cfg(feature = "storage_media")
 pub function native_browser_scroll_top(win) -> int
     if win is null
         return false
@@ -662,6 +780,8 @@ pub function native_browser_scroll_top(win) -> int
 end
 
 ## Scrolls to the bottom; returns `1` when submitted.
+## Requires the `storage_media` feature (default-on).
+@cfg(feature = "storage_media")
 pub function native_browser_scroll_bottom(win) -> int
     if win is null
         return false
@@ -670,6 +790,8 @@ pub function native_browser_scroll_bottom(win) -> int
 end
 
 ## Opens the print dialog; returns `1` when submitted.
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function native_browser_print_page(win) -> int
     if win is null
         return false
@@ -683,6 +805,8 @@ end
 
 ## Mutes (`1`) or unmutes (`0`) all page media elements.
 ## Returns `1` when submitted.
+## Requires the `storage_media` feature (default-on).
+@cfg(feature = "storage_media")
 pub function native_browser_set_muted(win, muted: int) -> int
     if win is null
         return false
@@ -696,6 +820,8 @@ end
 
 ## Returns `1` when no audible media is playing (all elements muted
 ## or none present), `0` when any element is unmuted.
+## Requires the `storage_media` feature (default-on).
+@cfg(feature = "storage_media")
 pub function native_browser_is_muted(win) -> int
     if win is null
         return false
@@ -707,6 +833,8 @@ pub function native_browser_is_muted(win) -> int
 end
 
 ## Sets all page media volumes (`0..100`). Returns `1` when submitted.
+## Requires the `storage_media` feature (default-on).
+@cfg(feature = "storage_media")
 pub function native_browser_set_volume(win, level: int) -> int
     if win is null
         return false
@@ -732,6 +860,8 @@ end
 ## Installs page error forwarding (JS exceptions, promise rejections,
 ## resource errors). Collect with `fetch_message()` + `is_js_error()`.
 ## Returns `1` when submitted.
+## Requires the `scripting` feature (default-on).
+@cfg(feature = "scripting")
 pub function native_browser_on_error(win) -> int
     if win is null
         return false
@@ -746,6 +876,8 @@ end
 
 ## Captures page console output (`1`) or restores it (`0`). Collect
 ## with `fetch_message()` + `is_console()`. Returns `1` when submitted.
+## Requires the `scripting` feature (default-on).
+@cfg(feature = "scripting")
 pub function native_browser_capture_console(win, enabled: int) -> int
     if win is null
         return false
@@ -763,6 +895,8 @@ end
 
 ## Pops the oldest inbox message (`""` when empty). See `on_error()`
 ## and `capture_console()`; classify with is_js_error()/is_console().
+## Requires the `scripting` feature (default-on).
+@cfg(feature = "scripting")
 pub function native_browser_fetch_message(win) -> string
     if win is null
         return ""
@@ -771,6 +905,8 @@ pub function native_browser_fetch_message(win) -> string
 end
 
 ## Returns `1` when a message payload is a forwarded JS error.
+## Requires the `scripting` feature (default-on).
+@cfg(feature = "scripting")
 pub function native_browser_is_js_error(text: string) -> int
     if text is null
         return false
@@ -779,6 +915,8 @@ pub function native_browser_is_js_error(text: string) -> int
 end
 
 ## Returns `1` when a message payload is a captured console entry.
+## Requires the `scripting` feature (default-on).
+@cfg(feature = "scripting")
 pub function native_browser_is_console(text: string) -> int
     if text is null
         return false
@@ -787,6 +925,8 @@ pub function native_browser_is_console(text: string) -> int
 end
 
 ## Returns the configured profile folder (`""` when default).
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function native_browser_data_dir() -> string
     let d = alya_webview_get_data_dir()
     if d is null
@@ -796,6 +936,8 @@ pub function native_browser_data_dir() -> string
 end
 
 ## Returns the configured extra switches (`""` when none).
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function native_browser_extra_args() -> string
     let a = alya_webview_get_extra_args()
     if a is null
@@ -805,6 +947,8 @@ pub function native_browser_extra_args() -> string
 end
 
 ## Returns the actual folder backing an open window (`""` when none).
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function native_browser_profile_path(win) -> string
     if win is null
         return ""
@@ -817,6 +961,8 @@ pub function native_browser_profile_path(win) -> string
 end
 
 ## Opens a browser window; null when no display or engine is available.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_open(title: string, width: int, height: int)
     if title is null or title == ""
         title = "Alya"
@@ -831,12 +977,16 @@ pub function native_browser_open(title: string, width: int, height: int)
 end
 
 ## Destroys a browser window handle (null-safe).
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_close_handle(win) -> int
     alya_webview_destroy(win)
     return true
 end
 
 ## Shows a browser window (null-safe).
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_show(win) -> int
     if win is null
         return false
@@ -846,6 +996,8 @@ pub function native_browser_show(win) -> int
 end
 
 ## Hides a browser window (null-safe).
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_hide(win) -> int
     if win is null
         return false
@@ -855,6 +1007,8 @@ pub function native_browser_hide(win) -> int
 end
 
 ## Returns 1 while the window handle is open.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_is_open(win) -> int
     if win is null
         return false
@@ -863,6 +1017,8 @@ pub function native_browser_is_open(win) -> int
 end
 
 ## Returns 1 when the rendering engine is attached (navigation works).
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_is_ready(win) -> int
     if win is null
         return false
@@ -871,6 +1027,8 @@ pub function native_browser_is_ready(win) -> int
 end
 
 ## Requests a graceful close (null-safe).
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_request_close(win) -> int
     if win is null
         return false
@@ -880,6 +1038,8 @@ pub function native_browser_request_close(win) -> int
 end
 
 ## Sets the window title (null-safe).
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_set_title(win, title: string) -> int
     if win is null
         return false
@@ -892,6 +1052,8 @@ pub function native_browser_set_title(win, title: string) -> int
 end
 
 ## Resizes the window client area (null-safe).
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function native_browser_resize(win, width: int, height: int) -> int
     if win is null
         return false
@@ -901,6 +1063,8 @@ pub function native_browser_resize(win, width: int, height: int) -> int
 end
 
 ## Navigates to a URL; returns `1` when accepted.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function native_browser_navigate(win, url: string) -> int
     if win is null
         return false
@@ -912,6 +1076,8 @@ pub function native_browser_navigate(win, url: string) -> int
 end
 
 ## Loads an HTML document string; returns `1` when accepted.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function native_browser_load_html(win, html: string) -> int
     if win is null
         return false
@@ -923,6 +1089,8 @@ pub function native_browser_load_html(win, html: string) -> int
 end
 
 ## Reloads the current page; returns `1` when accepted.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function native_browser_reload(win) -> int
     if win is null
         return false
@@ -931,6 +1099,8 @@ pub function native_browser_reload(win) -> int
 end
 
 ## Goes back in history; returns `1` when accepted.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function native_browser_back(win) -> int
     if win is null
         return false
@@ -939,6 +1109,8 @@ pub function native_browser_back(win) -> int
 end
 
 ## Goes forward in history; returns `1` when accepted.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function native_browser_forward(win) -> int
     if win is null
         return false
@@ -947,6 +1119,8 @@ pub function native_browser_forward(win) -> int
 end
 
 ## Returns 1 when back navigation is possible.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function native_browser_can_back(win) -> int
     if win is null
         return false
@@ -955,6 +1129,8 @@ pub function native_browser_can_back(win) -> int
 end
 
 ## Returns 1 when forward navigation is possible.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function native_browser_can_forward(win) -> int
     if win is null
         return false
@@ -965,6 +1141,8 @@ end
 ## Runs JS asynchronously; the JSON-encoded result is polled via
 ## `native_browser_eval_state` / `native_browser_eval_result`.
 ## Returns `1` when the script was submitted.
+## Requires the `scripting` feature (default-on).
+@cfg(feature = "scripting")
 pub function native_browser_eval(win, js: string) -> int
     if win is null
         return false
@@ -976,6 +1154,8 @@ pub function native_browser_eval(win, js: string) -> int
 end
 
 ## Returns the pending eval state (`0` pending, `1` ready, `2` error).
+## Requires the `scripting` feature (default-on).
+@cfg(feature = "scripting")
 pub function native_browser_eval_state(win) -> int
     if win is null
         return WebviewEvalState.Error
@@ -984,6 +1164,8 @@ pub function native_browser_eval_state(win) -> int
 end
 
 ## Returns the last JS eval result (`""` when none).
+## Requires the `scripting` feature (default-on).
+@cfg(feature = "scripting")
 pub function native_browser_eval_result(win) -> string
     if win is null
         return ""
@@ -998,6 +1180,8 @@ end
 ## Delivers a string to the page through `window.postMessage`
 ## (observed with `window.addEventListener("message")`).
 ## Returns `1` when delivered.
+## Requires the `scripting` feature (default-on).
+@cfg(feature = "scripting")
 pub function native_browser_post_message(win, json: string) -> int
     if win is null
         return false
@@ -1009,6 +1193,8 @@ pub function native_browser_post_message(win, json: string) -> int
 end
 
 ## Toggles developer tools; returns `1` when applied.
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function native_browser_set_devtools(win, enabled: int) -> int
     if win is null
         return false
@@ -1017,6 +1203,8 @@ pub function native_browser_set_devtools(win, enabled: int) -> int
 end
 
 ## Toggles JavaScript; returns `1` when applied.
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function native_browser_set_js(win, enabled: int) -> int
     if win is null
         return false
@@ -1025,6 +1213,8 @@ pub function native_browser_set_js(win, enabled: int) -> int
 end
 
 ## Overrides the user-agent string; returns `1` when applied.
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function native_browser_set_user_agent(win, ua: string) -> int
     if win is null
         return false
@@ -1036,6 +1226,8 @@ pub function native_browser_set_user_agent(win, ua: string) -> int
 end
 
 ## Applies a `WebviewSettings` record; returns applied count.
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function native_browser_apply_settings(win, s: WebviewSettings) -> int
     if win is null or s is null
         return 0
@@ -1050,6 +1242,8 @@ pub function native_browser_apply_settings(win, s: WebviewSettings) -> int
 end
 
 ## Pumps once; returns the event kind (`0` = none, else `WebviewEventKind`).
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub function native_browser_poll(win) -> int
     if win is null
         return WebviewEventKind.None
@@ -1058,6 +1252,8 @@ pub function native_browser_poll(win) -> int
 end
 
 ## Last event: current URL (`""` when unknown).
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub function native_browser_last_url(win) -> string
     if win is null
         return ""
@@ -1070,6 +1266,8 @@ pub function native_browser_last_url(win) -> string
 end
 
 ## Last event: document title (`""` when unknown).
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub function native_browser_last_title(win) -> string
     if win is null
         return ""
@@ -1082,6 +1280,8 @@ pub function native_browser_last_title(win) -> string
 end
 
 ## Last `Message` event: payload text (`""` when none).
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub function native_browser_last_text(win) -> string
     if win is null
         return ""
@@ -1095,6 +1295,8 @@ end
 
 ## Drains all pending native events into `q` as `WebviewEvent` records.
 ## Returns the event count drained (`0` for null handles/queues).
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub function native_browser_drain(win, q: WebviewEventQueue) -> int
     if win is null or q is null
         return 0
@@ -1122,6 +1324,8 @@ end
 ## Submits JS and waits up to `budget` pumps for the result.
 ## Each pump yields ~10ms so out-of-process engines can answer.
 ## Returns the JSON-encoded result, or `""` on error/timeout.
+## Requires the `scripting` feature (default-on).
+@cfg(feature = "scripting")
 pub function native_browser_eval_wait(win, js: string, budget: int = 200) -> string
     if win is null
         return ""

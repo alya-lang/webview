@@ -6,29 +6,96 @@
 import "std/test"
 import "../src/lib.alya" as pkg
 
-function main()
-    test_suite("webview Basic Tests")
-    let r = runner_new()
+@cfg(feature = "window")
+function test_window(r)
+    # Null-safe window lifecycle (no window needed)
+    runner_assert_eq(r, pkg::destroy(null), true, "destroy null safe")
+    runner_assert_eq(r, pkg::show(null), false, "show null is 0")
+    runner_assert_eq(r, pkg::hide(null), false, "hide null is 0")
+    runner_assert_eq(r, pkg::is_open(null), false, "is_open null is 0")
+    runner_assert_eq(r, pkg::is_ready(null), false, "is_ready null is 0")
+    runner_assert_eq(r, pkg::request_close(null), false, "request_close null is 0")
+    runner_assert_eq(r, pkg::set_title(null, "x"), false, "set_title null is 0")
+    runner_assert_eq(r, pkg::resize(null, 1, 1), false, "resize null is 0")
+    runner_assert_eq(r, pkg::set_background(null, 0, 0, 0, 255), false, "set_background null is 0")
+    runner_assert_eq(r, pkg::set_context_menu(null, 0), false, "set_context_menu null is 0")
+    runner_assert_eq(r, pkg::set_shortcut_block(null, 1), false, "set_shortcut_block null is 0")
+    runner_assert_eq(r, pkg::set_charset(null, "UTF-8"), false, "set_charset null is 0")
+    runner_assert_eq(r, pkg::set_borderless(null, 1), false, "set_borderless null is 0")
+    runner_assert_eq(r, pkg::set_topmost(null, 1), false, "set_topmost null is 0")
+    runner_assert_eq(r, pkg::set_opacity(null, 0.5), false, "set_opacity null is 0")
+    runner_assert_eq(r, pkg::set_click_through(null, 1), false, "set_click_through null is 0")
+    runner_assert_eq(r, pkg::set_fullscreen(null, 1), false, "set_fullscreen null is 0")
+    runner_assert_eq(r, pkg::focus(null), false, "focus null is 0")
+    runner_assert_eq(r, pkg::minimize(null), false, "minimize null is 0")
+    runner_assert_eq(r, pkg::restore(null), false, "restore null is 0")
+    runner_assert_eq(r, pkg::maximize(null), false, "maximize null is 0")
+    runner_assert_eq(r, pkg::set_minimize_button(null, 0), false, "minimize button null is 0")
+    runner_assert_eq(r, pkg::set_maximize_button(null, 0), false, "maximize button null is 0")
+    runner_assert_eq(r, pkg::set_close_button(null, 0), false, "close button null is 0")
+    runner_assert_eq(r, pkg::set_resizable(null, 0), false, "resizable null is 0")
+    runner_assert_eq(r, pkg::set_position(null, 0, 0), false, "set_position null is 0")
+end
 
-    # ═══════════════════════════════════════════════════════════
-    # 1. Event kind values mirror c/webview.h
-    # ═══════════════════════════════════════════════════════════
-    runner_assert_eq(r, pkg::WebviewEventKind.None, 0, "None == 0")
-    runner_assert_eq(r, pkg::WebviewEventKind.Close, 1, "Close == 1")
-    runner_assert_eq(r, pkg::WebviewEventKind.Resize, 2, "Resize == 2")
-    runner_assert_eq(r, pkg::WebviewEventKind.NavStart, 3, "NavStart == 3")
-    runner_assert_eq(r, pkg::WebviewEventKind.NavDone, 4, "NavDone == 4")
-    runner_assert_eq(r, pkg::WebviewEventKind.Title, 5, "Title == 5")
-    runner_assert_eq(r, pkg::WebviewEventKind.Message, 6, "Message == 6")
-    runner_assert_eq(r, pkg::WebviewEventKind.NavFailed, 7, "NavFailed == 7")
+@cfg(not(feature = "window"))
+function test_window(r)
+end
 
+@cfg(feature = "navigation")
+function test_navigation(r)
+    # Null-safe navigation (no window needed)
+    runner_assert_eq(r, pkg::navigate(null, "https://example.com"), false, "navigate null is 0")
+    runner_assert_eq(r, pkg::navigate(null, ""), false, "navigate empty is 0")
+    runner_assert_eq(r, pkg::load_html(null, "<h1>x</h1>"), false, "load_html null is 0")
+    runner_assert_eq(r, pkg::reload(null), false, "reload null is 0")
+    runner_assert_eq(r, pkg::back(null), false, "back null is 0")
+    runner_assert_eq(r, pkg::forward(null), false, "forward null is 0")
+    runner_assert_eq(r, pkg::can_back(null), false, "can_back null is 0")
+    runner_assert_eq(r, pkg::can_forward(null), false, "can_forward null is 0")
+    runner_assert_eq(r, pkg::stop(null), false, "stop null is 0")
+    runner_assert_eq(r, pkg::reload_bypass(null), false, "reload_bypass null is 0")
+    runner_assert_eq(r, pkg::serve_folder(null, null), false, "serve_folder null is 0")
+    runner_assert_eq(r, pkg::serve_folder("", ""), false, "serve_folder empty is 0")
+    runner_assert_eq(r, pkg::clear_mapping(null), true, "clear_mapping null clears all")
+    runner_assert_eq(r, pkg::open_external(null), false, "open_external null is 0")
+    runner_assert_eq(r, pkg::open_external(""), false, "open_external empty is 0")
+end
+
+@cfg(not(feature = "navigation"))
+function test_navigation(r)
+end
+
+@cfg(feature = "scripting")
+function test_scripting(r)
+    # Eval state values mirror c/webview.h
     runner_assert_eq(r, pkg::WebviewEvalState.Pending, 0, "Pending == 0")
     runner_assert_eq(r, pkg::WebviewEvalState.Ready, 1, "Ready == 1")
     runner_assert_eq(r, pkg::WebviewEvalState.Error, 2, "Error == 2")
 
-    # ═══════════════════════════════════════════════════════════
-    # 2. Settings factories
-    # ═══════════════════════════════════════════════════════════
+    # Null-safe scripting (no window needed)
+    runner_assert_eq(r, pkg::eval(null, "1"), false, "eval null is 0")
+    runner_assert_eq(r, pkg::eval_state(null), pkg::WebviewEvalState.Error, "eval_state null is Error")
+    runner_assert_str_eq(r, pkg::eval_result(null), "", "eval_result null empty")
+    runner_assert_str_eq(r, pkg::eval_wait(null, "1"), "", "eval_wait null empty")
+    runner_assert_eq(r, pkg::post_message(null, "{}"), false, "post_message null is 0")
+    runner_assert_eq(r, pkg::on_error(null), false, "on_error null is 0")
+    runner_assert_eq(r, pkg::capture_console(null, 1), false, "capture_console null is 0")
+    runner_assert_str_eq(r, pkg::fetch_message(null), "", "fetch_message null empty")
+    runner_assert_eq(r, pkg::is_js_error(null), false, "is_js_error null is 0")
+    runner_assert_eq(r, pkg::is_console(null), false, "is_console null is 0")
+    runner_assert_eq(r, pkg::is_js_error("alya-js-error:{x:1}"), true, "js-error prefix detected")
+    runner_assert_eq(r, pkg::is_js_error("hello"), false, "plain text is not js-error")
+    runner_assert_eq(r, pkg::is_console("alya-console:{x:1}"), true, "console prefix detected")
+    runner_assert_eq(r, pkg::is_console("hello"), false, "plain text is not console")
+end
+
+@cfg(not(feature = "scripting"))
+function test_scripting(r)
+end
+
+@cfg(feature = "settings")
+function test_settings(r)
+    # Settings factories
     let s = pkg::settings()
     runner_assert_eq(r, s.devtools, 0, "default devtools off")
     runner_assert_eq(r, s.js, 1, "default js on")
@@ -39,80 +106,36 @@ function main()
     runner_assert_eq(r, custom.js, 0, "custom js off")
     runner_assert_str_eq(r, custom.user_agent, "Alya/1.0", "custom UA kept")
 
-    # ═══════════════════════════════════════════════════════════
-    # 3. Event records and methods
-    # ═══════════════════════════════════════════════════════════
-    let q = pkg::event_queue()
-    runner_assert_eq(r, pkg::drain(null, q), 0, "drain null win is 0")
-    runner_assert(r, pkg::poll(null) == 0, "poll null is None")
-
-    let cev = pkg::WebviewEvent { kind: 1, width: 800, height: 600, url: "about:blank", title: "t", text: "" }
-    runner_assert_eq(r, cev.is_close(), true, "Close event is_close")
-    runner_assert_eq(r, cev.is_message(), false, "Close event not message")
-
-    let mev = pkg::WebviewEvent { kind: 6, width: 0, height: 0, url: "", title: "", text: "hi" }
-    runner_assert_eq(r, mev.is_message(), true, "Message event is_message")
-    runner_assert_eq(r, mev.is_close(), false, "Message event not close")
-    runner_assert_true(r, len(mev.summary()) > 0, "summary non-empty")
-
-    # ═══════════════════════════════════════════════════════════
-    # 4. Queue push / peek / poll / clear
-    # ═══════════════════════════════════════════════════════════
-    let q2 = pkg::event_queue()
-    runner_assert_eq(r, pkg::drain(null, null), 0, "drain null null is 0")
-    runner_assert(r, pkg::poll(null) == pkg::WebviewEventKind.None, "poll null kind None")
-    runner_assert_eq(r, pkg::event_queue_push(q2, cev), 1, "push returns 1")
-    runner_assert_eq(r, pkg::event_queue_push(q2, mev), 2, "push returns 2")
-    runner_assert_eq(r, pkg::event_queue_len(q2), 2, "len is 2")
-    runner_assert_eq(r, pkg::event_queue_is_empty(q2), false, "not empty")
-    let first = pkg::event_queue_peek(q2)
-    runner_assert_eq(r, first.kind, 1, "peek sees Close first")
-    let got = pkg::event_queue_poll(q2)
-    runner_assert_eq(r, got.kind, 1, "poll takes Close first")
-    runner_assert_eq(r, pkg::event_queue_len(q2), 1, "len is 1 after poll")
-    runner_assert_eq(r, pkg::event_queue_clear(q2), true, "clear ok")
-    runner_assert_eq(r, pkg::event_queue_is_empty(q2), true, "empty after clear")
-    runner_assert(r, pkg::event_queue_poll(q2) is null, "poll empty is null")
-    runner_assert(r, pkg::event_queue_peek(q2) is null, "peek empty is null")
-
-    # ═══════════════════════════════════════════════════════════
-    # 5. Null-safe facade (no window needed)
-    # ═══════════════════════════════════════════════════════════
-    runner_assert_eq(r, pkg::destroy(null), true, "destroy null safe")
-    runner_assert_eq(r, pkg::show(null), false, "show null is 0")
-    runner_assert_eq(r, pkg::hide(null), false, "hide null is 0")
-    runner_assert_eq(r, pkg::is_open(null), false, "is_open null is 0")
-    runner_assert_eq(r, pkg::is_ready(null), false, "is_ready null is 0")
-    runner_assert_eq(r, pkg::request_close(null), false, "request_close null is 0")
-    runner_assert_eq(r, pkg::set_title(null, "x"), false, "set_title null is 0")
-    runner_assert_eq(r, pkg::resize(null, 1, 1), false, "resize null is 0")
-    runner_assert_eq(r, pkg::navigate(null, "https://example.com"), false, "navigate null is 0")
-    runner_assert_eq(r, pkg::navigate(null, ""), false, "navigate empty is 0")
-    runner_assert_eq(r, pkg::load_html(null, "<h1>x</h1>"), false, "load_html null is 0")
-    runner_assert_eq(r, pkg::reload(null), false, "reload null is 0")
-    runner_assert_eq(r, pkg::back(null), false, "back null is 0")
-    runner_assert_eq(r, pkg::forward(null), false, "forward null is 0")
-    runner_assert_eq(r, pkg::can_back(null), false, "can_back null is 0")
-    runner_assert_eq(r, pkg::can_forward(null), false, "can_forward null is 0")
-    runner_assert_eq(r, pkg::eval(null, "1"), false, "eval null is 0")
-    runner_assert_eq(r, pkg::eval_state(null), pkg::WebviewEvalState.Error, "eval_state null is Error")
-    runner_assert_str_eq(r, pkg::eval_result(null), "", "eval_result null empty")
-    runner_assert_str_eq(r, pkg::eval_wait(null, "1"), "", "eval_wait null empty")
-    runner_assert_eq(r, pkg::post_message(null, "{}"), false, "post_message null is 0")
+    # Null-safe settings (no window needed)
+    runner_assert_eq(r, pkg::apply_settings(null, s), 0, "apply_settings null is 0")
+    runner_assert_eq(r, pkg::apply_settings(null, null), 0, "apply_settings null null is 0")
     runner_assert_eq(r, pkg::set_devtools(null, 1), false, "set_devtools null is 0")
     runner_assert_eq(r, pkg::set_js(null, 1), false, "set_js null is 0")
     runner_assert_eq(r, pkg::set_user_agent(null, "x"), false, "set_user_agent null is 0")
-    runner_assert_eq(r, pkg::apply_settings(null, s), 0, "apply_settings null is 0")
-    runner_assert_eq(r, pkg::apply_settings(null, null), 0, "apply_settings null null is 0")
-    runner_assert_str_eq(r, pkg::last_url(null), "", "last_url null empty")
-    runner_assert_str_eq(r, pkg::last_title(null), "", "last_title null empty")
-    runner_assert_str_eq(r, pkg::last_text(null), "", "last_text null empty")
-    runner_assert_eq(r, pkg::open_external(null), false, "open_external null is 0")
-    runner_assert_eq(r, pkg::open_external(""), false, "open_external empty is 0")
+    runner_assert_eq(r, pkg::set_zoom(null, 1.5), false, "set_zoom null is 0")
+    runner_assert_true(r, pkg::get_zoom(null) < 0.01, "get_zoom null is ~0.0")
+    runner_assert_eq(r, pkg::set_data_dir(null), true, "set_data_dir null resets")
+    runner_assert_eq(r, pkg::set_extra_args(null), true, "set_extra_args null clears")
+    runner_assert_str_eq(r, pkg::data_dir(), "", "data_dir default empty")
+    runner_assert_str_eq(r, pkg::extra_args(), "", "extra_args default empty")
+    runner_assert_str_eq(r, pkg::profile_path(null), "", "profile_path null empty")
+    runner_assert_eq(r, pkg::set_data_dir(".alya/wvdata-probe"), true, "data dir staged")
+    runner_assert_str_eq(r, pkg::data_dir(), ".alya/wvdata-probe", "data_dir roundtrips")
+    runner_assert_eq(r, pkg::set_extra_args("--disable-gpu"), true, "extra args staged")
+    runner_assert_str_eq(r, pkg::extra_args(), "--disable-gpu", "extra_args roundtrips")
+    runner_assert_eq(r, pkg::set_data_dir(null), true, "data dir reset again")
+    runner_assert_eq(r, pkg::set_extra_args(null), true, "extra args cleared again")
+    runner_assert_eq(r, pkg::set_images(null, 0), false, "set_images null is 0")
+    runner_assert_eq(r, pkg::set_webgl(null, 0), false, "set_webgl null is 0")
+end
 
-    # ═══════════════════════════════════════════════════════════
-    # 6. Key codes and null-safe input/zoom (no window needed)
-    # ═══════════════════════════════════════════════════════════
+@cfg(not(feature = "settings"))
+function test_settings(r)
+end
+
+@cfg(feature = "input")
+function test_input(r)
+    # Key codes and null-safe input (no window needed)
     runner_assert_true(r, pkg::key_code("Enter") >= 0, "Enter maps to a code")
     runner_assert_true(r, pkg::key_code("Escape") >= 0, "Escape maps to a code")
     runner_assert_true(r, pkg::key_code("Left") >= 0, "Left maps to a code")
@@ -130,43 +153,15 @@ function main()
     runner_assert_eq(r, pkg::key_tap(null, 13), false, "key_tap null is 0")
     runner_assert_eq(r, pkg::key_text(null, "a"), false, "key_text null is 0")
     runner_assert_eq(r, pkg::key_text(null, null), false, "key_text null null is 0")
-    runner_assert_eq(r, pkg::set_zoom(null, 1.5), false, "set_zoom null is 0")
-    runner_assert_true(r, pkg::get_zoom(null) < 0.01, "get_zoom null is ~0.0")
-    runner_assert_eq(r, pkg::set_data_dir(null), true, "set_data_dir null resets")
-    runner_assert_eq(r, pkg::set_extra_args(null), true, "set_extra_args null clears")
-    runner_assert_str_eq(r, pkg::data_dir(), "", "data_dir default empty")
-    runner_assert_str_eq(r, pkg::extra_args(), "", "extra_args default empty")
-    runner_assert_str_eq(r, pkg::profile_path(null), "", "profile_path null empty")
-    runner_assert_eq(r, pkg::set_data_dir(".alya/wvdata-probe"), true, "data dir staged")
-    runner_assert_str_eq(r, pkg::data_dir(), ".alya/wvdata-probe", "data_dir roundtrips")
-    runner_assert_eq(r, pkg::set_extra_args("--disable-gpu"), true, "extra args staged")
-    runner_assert_str_eq(r, pkg::extra_args(), "--disable-gpu", "extra_args roundtrips")
-    runner_assert_eq(r, pkg::set_data_dir(null), true, "data dir reset again")
-    runner_assert_eq(r, pkg::set_extra_args(null), true, "extra args cleared again")
-    runner_assert_eq(r, pkg::set_background(null, 0, 0, 0, 255), false, "set_background null is 0")
-    runner_assert_eq(r, pkg::set_context_menu(null, 0), false, "set_context_menu null is 0")
-    runner_assert_eq(r, pkg::set_shortcut_block(null, 1), false, "set_shortcut_block null is 0")
-    runner_assert_eq(r, pkg::set_images(null, 0), false, "set_images null is 0")
-    runner_assert_eq(r, pkg::set_webgl(null, 0), false, "set_webgl null is 0")
-    runner_assert_eq(r, pkg::set_charset(null, "UTF-8"), false, "set_charset null is 0")
-    runner_assert_eq(r, pkg::set_borderless(null, 1), false, "set_borderless null is 0")
-    runner_assert_eq(r, pkg::set_topmost(null, 1), false, "set_topmost null is 0")
-    runner_assert_eq(r, pkg::set_opacity(null, 0.5), false, "set_opacity null is 0")
-    runner_assert_eq(r, pkg::set_click_through(null, 1), false, "set_click_through null is 0")
-    runner_assert_eq(r, pkg::set_fullscreen(null, 1), false, "set_fullscreen null is 0")
-    runner_assert_eq(r, pkg::focus(null), false, "focus null is 0")
-    runner_assert_eq(r, pkg::minimize(null), false, "minimize null is 0")
-    runner_assert_eq(r, pkg::restore(null), false, "restore null is 0")
-    runner_assert_eq(r, pkg::maximize(null), false, "maximize null is 0")
-    runner_assert_eq(r, pkg::set_minimize_button(null, 0), false, "minimize button null is 0")
-    runner_assert_eq(r, pkg::set_maximize_button(null, 0), false, "maximize button null is 0")
-    runner_assert_eq(r, pkg::set_close_button(null, 0), false, "close button null is 0")
-    runner_assert_eq(r, pkg::set_resizable(null, 0), false, "resizable null is 0")    runner_assert_eq(r, pkg::set_position(null, 0, 0), false, "set_position null is 0")
-    runner_assert_eq(r, pkg::stop(null), false, "stop null is 0")
-    runner_assert_eq(r, pkg::reload_bypass(null), false, "reload_bypass null is 0")
-    runner_assert_eq(r, pkg::serve_folder(null, null), false, "serve_folder null is 0")
-    runner_assert_eq(r, pkg::serve_folder("", ""), false, "serve_folder empty is 0")
-    runner_assert_eq(r, pkg::clear_mapping(null), true, "clear_mapping null clears all")
+end
+
+@cfg(not(feature = "input"))
+function test_input(r)
+end
+
+@cfg(feature = "inspection")
+function test_inspection(r)
+    # Null-safe page inspection (no window needed)
     runner_assert_eq(r, pkg::find_text(null, "x"), false, "find_text null is 0")
     runner_assert_eq(r, pkg::find_text(null, null), false, "find_text null null is 0")
     runner_assert_str_eq(r, pkg::get_source(null), "", "get_source null empty")
@@ -181,6 +176,16 @@ function main()
     runner_assert_str_eq(r, pkg::page_language(null), "", "page_language null empty")
     runner_assert_eq(r, pkg::is_online(null), false, "is_online null is 0")
     runner_assert_str_eq(r, pkg::referrer(null), "", "referrer null empty")
+    runner_assert_eq(r, pkg::print_page(null), false, "print_page null is 0")
+end
+
+@cfg(not(feature = "inspection"))
+function test_inspection(r)
+end
+
+@cfg(feature = "storage_media")
+function test_storage_media(r)
+    # Null-safe storage, scroll and media (no window needed)
     runner_assert_str_eq(r, pkg::storage_get(null, "k"), "", "storage_get null empty")
     runner_assert_str_eq(r, pkg::storage_get(null, null), "", "storage_get null null empty")
     runner_assert_eq(r, pkg::storage_set(null, "k", "v"), false, "storage_set null is 0")
@@ -189,25 +194,83 @@ function main()
     runner_assert_eq(r, pkg::scroll_by(null, 0, 1), false, "scroll_by null is 0")
     runner_assert_eq(r, pkg::scroll_top(null), false, "scroll_top null is 0")
     runner_assert_eq(r, pkg::scroll_bottom(null), false, "scroll_bottom null is 0")
-    runner_assert_eq(r, pkg::print_page(null), false, "print_page null is 0")
     runner_assert_eq(r, pkg::set_muted(null, 1), false, "set_muted null is 0")
     runner_assert_eq(r, pkg::is_muted(null), false, "is_muted null is 0")
     runner_assert_eq(r, pkg::set_volume(null, 50), false, "set_volume null is 0")
-    runner_assert_eq(r, pkg::on_error(null), false, "on_error null is 0")
-    runner_assert_eq(r, pkg::capture_console(null, 1), false, "capture_console null is 0")
-    runner_assert_str_eq(r, pkg::fetch_message(null), "", "fetch_message null empty")
-    runner_assert_eq(r, pkg::is_js_error(null), false, "is_js_error null is 0")
-    runner_assert_eq(r, pkg::is_console(null), false, "is_console null is 0")
-    runner_assert_eq(r, pkg::is_js_error("alya-js-error:{x:1}"), true, "js-error prefix detected")
-    runner_assert_eq(r, pkg::is_js_error("hello"), false, "plain text is not js-error")
-    runner_assert_eq(r, pkg::is_console("alya-console:{x:1}"), true, "console prefix detected")
-    runner_assert_eq(r, pkg::is_console("hello"), false, "plain text is not console")
-    let ver = pkg::engine_version()
-    runner_assert_true(r, ver == "" or len(ver) > 0, "engine_version is a string")
+end
 
-    # ═══════════════════════════════════════════════════════════
-    # 7. Native smoke: bundled C linked + backend selected
-    # ═══════════════════════════════════════════════════════════
+@cfg(not(feature = "storage_media"))
+function test_storage_media(r)
+end
+
+@cfg(feature = "events")
+function test_events(r)
+    # Event kind values mirror c/webview.h
+    runner_assert_eq(r, pkg::WebviewEventKind.None, 0, "None == 0")
+    runner_assert_eq(r, pkg::WebviewEventKind.Close, 1, "Close == 1")
+    runner_assert_eq(r, pkg::WebviewEventKind.Resize, 2, "Resize == 2")
+    runner_assert_eq(r, pkg::WebviewEventKind.NavStart, 3, "NavStart == 3")
+    runner_assert_eq(r, pkg::WebviewEventKind.NavDone, 4, "NavDone == 4")
+    runner_assert_eq(r, pkg::WebviewEventKind.Title, 5, "Title == 5")
+    runner_assert_eq(r, pkg::WebviewEventKind.Message, 6, "Message == 6")
+    runner_assert_eq(r, pkg::WebviewEventKind.NavFailed, 7, "NavFailed == 7")
+
+    # Event records and methods
+    let q = pkg::event_queue()
+    runner_assert_eq(r, pkg::drain(null, q), 0, "drain null win is 0")
+    runner_assert(r, pkg::poll(null) == 0, "poll null is None")
+
+    let cev = pkg::WebviewEvent { kind: 1, width: 800, height: 600, url: "about:blank", title: "t", text: "" }
+    runner_assert_eq(r, cev.is_close(), true, "Close event is_close")
+    runner_assert_eq(r, cev.is_message(), false, "Close event not message")
+
+    let mev = pkg::WebviewEvent { kind: 6, width: 0, height: 0, url: "", title: "", text: "hi" }
+    runner_assert_eq(r, mev.is_message(), true, "Message event is_message")
+    runner_assert_eq(r, mev.is_close(), false, "Message event not close")
+    runner_assert_true(r, len(mev.summary()) > 0, "summary non-empty")
+
+    # Queue push / peek / poll / clear
+    let q2 = pkg::event_queue()
+    runner_assert_eq(r, pkg::drain(null, null), 0, "drain null null is 0")
+    runner_assert(r, pkg::poll(null) == pkg::WebviewEventKind.None, "poll null kind None")
+    runner_assert_eq(r, pkg::event_queue_push(q2, cev), 1, "push returns 1")
+    runner_assert_eq(r, pkg::event_queue_push(q2, mev), 2, "push returns 2")
+    runner_assert_eq(r, pkg::event_queue_len(q2), 2, "len is 2")
+    runner_assert_eq(r, pkg::event_queue_is_empty(q2), false, "not empty")
+    let first = pkg::event_queue_peek(q2)
+    runner_assert_eq(r, first.kind, 1, "peek sees Close first")
+    let got = pkg::event_queue_poll(q2)
+    runner_assert_eq(r, got.kind, 1, "poll takes Close first")
+    runner_assert_eq(r, pkg::event_queue_len(q2), 1, "len is 1 after poll")
+    runner_assert_eq(r, pkg::event_queue_clear(q2), true, "clear ok")
+    runner_assert_eq(r, pkg::event_queue_is_empty(q2), true, "empty after clear")
+    runner_assert(r, pkg::event_queue_poll(q2) is null, "poll empty is null")
+    runner_assert(r, pkg::event_queue_peek(q2) is null, "peek empty is null")
+
+    # Last-event getters degrade to empty without a window
+    runner_assert_str_eq(r, pkg::last_url(null), "", "last_url null empty")
+    runner_assert_str_eq(r, pkg::last_title(null), "", "last_title null empty")
+    runner_assert_str_eq(r, pkg::last_text(null), "", "last_text null empty")
+end
+
+@cfg(not(feature = "events"))
+function test_events(r)
+end
+
+function main()
+    test_suite("webview Basic Tests")
+    let r = runner_new()
+
+    test_window(r)
+    test_navigation(r)
+    test_scripting(r)
+    test_settings(r)
+    test_input(r)
+    test_inspection(r)
+    test_storage_media(r)
+    test_events(r)
+
+    # Native smoke: bundled C linked + backend selected (always available)
     let c_sum = pkg::c_add(10, 32)
     runner_assert_eq(r, c_sum, 42, "pkg::c_add executes bundled C code")
 
@@ -215,6 +278,9 @@ function main()
     runner_assert_true(r, bid >= 1 and bid <= 3, "backend id in 1..3")
     let bname = pkg::backend()
     runner_assert_true(r, bname == "windows" or bname == "macos" or bname == "linux", "backend is a known name")
+
+    let ver = pkg::engine_version()
+    runner_assert_true(r, ver == "" or len(ver) > 0, "engine_version is a string")
 
     let failed = runner_summary(r)
     if failed > 0

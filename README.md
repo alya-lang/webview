@@ -31,7 +31,7 @@ webview/
 ├── .editorconfig           # Uniform formatting rules across IDEs and editors
 ├── .gitignore              # Ecosystem standard ignore filters
 ├── .vscode/                # VS Code workspace settings, DAP launch configurations & tasks
-├── alya.toml               # Package manifest with per-OS [build] sources and link flags
+├── alya.toml               # Package manifest with per-OS [build] sources, link flags and [features]
 ├── c/                      # Native backends (zero-dependency FFI)
 │   ├── webview.h           # Single shared ABI contract (all backends implement it)
 │   ├── webview.c           # Engine-independent helpers (link smoke test)
@@ -74,6 +74,31 @@ Or install it directly using the Alya package CLI:
 ```bash
 alya add webview --git https://github.com/alya-lang/webview --branch main
 alya install
+```
+
+### Package Features
+
+| Feature | Default | Description |
+|:---|:---:|:---|
+| `window` | ✅ | Lifecycle and chrome (`open`, `show`, `set_title`, `resize`, `set_fullscreen`, ...). |
+| `navigation` | ✅ | Address bar (`navigate`, `load_html`, `reload`, `back`, `forward`, ...; implies `window`, `events`). |
+| `scripting` | ✅ | JS eval and page messages (`eval`, `eval_wait`, `post_message`, `on_error`, ...; implies `window`, `events`). |
+| `settings` | ✅ | Engine settings (`settings`, `set_devtools`, `set_js`, `set_zoom`, `set_data_dir`, ...; implies `window`). |
+| `input` | ✅ | Synthetic input (`mouse_move`, `key_tap`, `key_code`, ...; implies `window`). |
+| `inspection` | ✅ | Page readers (`get_source`, `current_url`, `viewport_width`, ...; implies `window`, `scripting`). |
+| `storage_media` | ✅ | Storage, scroll and media (`storage_set`, `scroll_to`, `set_muted`, `set_volume`, ...; implies `window`, `scripting`). |
+| `events` | ✅ | Queue, pump and drain (`event_queue`, `poll`, `drain`, `last_url`, ...; implies `window`). |
+
+Every function is null-safe, so slim builds degrade to empty results instead of errors. The C backends in `c/` always link; features only gate the Alya API surface.
+
+```bash
+# Full build (default)
+alya install
+alya test
+
+# Slim build (backend probes only; helpers become no-ops)
+alya install --no-default-features
+alya test --no-default-features
 ```
 
 ---

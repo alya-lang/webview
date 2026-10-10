@@ -11,6 +11,9 @@
 ## Browser event kinds, mirroring `ALYA_WEBVIEW_EVENT_*` in `c/webview.h`.
 ##
 ## `None` is never queued; `poll()` returns it when no event is pending.
+##
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub enum WebviewEventKind
     None = 0,
     Close = 1,
@@ -23,6 +26,9 @@ pub enum WebviewEventKind
 end
 
 ## JS eval completion states, mirroring `ALYA_WEBVIEW_EVAL_*`.
+##
+## Requires the `scripting` feature (default-on).
+@cfg(feature = "scripting")
 pub enum WebviewEvalState
     Pending = 0,
     Ready = 1,
@@ -42,6 +48,9 @@ end
 ## - `url`: Current URL (`""` when unknown).
 ## - `title`: Current document title (`""` when unknown).
 ## - `text`: Message payload (`Message` events only, else `""`).
+##
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub struct WebviewEvent
     kind: int,
     width: int,
@@ -57,6 +66,9 @@ end
 ## - `devtools`: `1` enables developer tools, `0` disables them.
 ## - `js`: `1` enables JavaScript, `0` disables it.
 ## - `user_agent`: Custom user-agent string (`""` leaves the default).
+##
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub struct WebviewSettings
     devtools: int,
     js: int,
@@ -73,6 +85,9 @@ end
 ## ```alya
 ## let s = default_settings()
 ## ```
+##
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function default_settings() -> WebviewSettings
     return WebviewSettings {
         devtools: 0,
@@ -87,6 +102,9 @@ end
 ## - `devtools`: `1` enables developer tools. Defaults to `0`.
 ## - `js`: `1` enables JavaScript. Defaults to `1`.
 ## - `user_agent`: Custom user-agent string. Defaults to `""`.
+##
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function make_settings(devtools: int = 0, js: int = 1, user_agent: string = "") -> WebviewSettings
     return WebviewSettings {
         devtools: devtools,
@@ -100,6 +118,9 @@ end
 # ───────────────────────────────────────────────────────────────
 
 ## Returns 1 when this event closes the window (`Close` kind).
+##
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub function WebviewEvent.is_close(self: WebviewEvent) -> int
     if self.kind == WebviewEventKind.Close
         return true
@@ -108,6 +129,9 @@ pub function WebviewEvent.is_close(self: WebviewEvent) -> int
 end
 
 ## Returns 1 when this event carries a JS message (`Message` kind).
+##
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub function WebviewEvent.is_message(self: WebviewEvent) -> int
     if self.kind == WebviewEventKind.Message
         return true
@@ -116,6 +140,9 @@ pub function WebviewEvent.is_message(self: WebviewEvent) -> int
 end
 
 ## Returns a one-line summary of this event for logging.
+##
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub function WebviewEvent.summary(self: WebviewEvent) -> string
     return "event(kind={self.kind}, url={self.url})"
 end

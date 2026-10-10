@@ -12,17 +12,26 @@ import "../types.alya"
 ## ### Fields
 ## - `events`: Buffered events (only indexes `>= head` are live).
 ## - `head`: Index of the next event to poll.
+##
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub struct WebviewEventQueue
     events: array,
     head: int
 end
 
 ## Creates an empty event queue.
+##
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub function event_queue_new() -> WebviewEventQueue
     return WebviewEventQueue { events: [], head: 0 }
 end
 
 ## Returns the number of pending (unpopped) events.
+##
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub function event_queue_len(q: WebviewEventQueue) -> int
     if q is null
         return 0
@@ -31,6 +40,9 @@ pub function event_queue_len(q: WebviewEventQueue) -> int
 end
 
 ## Returns 1 when no events are pending.
+##
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub function event_queue_is_empty(q: WebviewEventQueue) -> int
     if event_queue_len(q) == 0
         return true
@@ -39,6 +51,9 @@ pub function event_queue_is_empty(q: WebviewEventQueue) -> int
 end
 
 ## Appends an event; returns the pending count afterwards.
+##
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub function event_queue_push(q: WebviewEventQueue, ev: WebviewEvent) -> int
     if q is null or ev is null
         return event_queue_len(q)
@@ -48,6 +63,9 @@ pub function event_queue_push(q: WebviewEventQueue, ev: WebviewEvent) -> int
 end
 
 ## Returns the next event without removing it, or null when empty.
+##
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub function event_queue_peek(q: WebviewEventQueue)
     if event_queue_len(q) == 0
         return null
@@ -56,6 +74,9 @@ pub function event_queue_peek(q: WebviewEventQueue)
 end
 
 ## Removes and returns the next event, or null when empty.
+##
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub function event_queue_poll(q: WebviewEventQueue)
     if event_queue_len(q) == 0
         return null
@@ -76,6 +97,9 @@ pub function event_queue_poll(q: WebviewEventQueue)
 end
 
 ## Drops all pending events and resets the cursor.
+##
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub function event_queue_clear(q: WebviewEventQueue) -> int
     if q is null
         return false

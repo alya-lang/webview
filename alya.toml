@@ -26,6 +26,32 @@ c-flags = ["-O2"]
 c-include-dirs = ["c"]
 links = "webview"
 
+# Optional: feature-gated API slices. Members name another feature;
+# gate the using code with `@cfg(feature = "...")` (see `src/lib.alya`,
+# `src/types.alya`, `src/core/events.alya` and `src/native/browser.alya`).
+# `default` is active unless the caller passes `--no-default-features`;
+# select features explicitly via
+# `alya build/run/test/bench/install --features <a,b>`.
+[features]
+default = ["window", "navigation", "scripting", "settings", "input", "inspection", "storage_media", "events"]
+# Lifecycle and window chrome; needs nothing else.
+window = []
+# Navigation drives windows and reports completion through the event loop.
+navigation = ["window", "events"]
+# Scripting pumps JS results through the event loop.
+scripting = ["window", "events"]
+# Engine and profile settings apply to open windows.
+settings = ["window"]
+# Synthetic input posts to open windows.
+input = ["window"]
+# Page readers run JS through eval_wait.
+inspection = ["window", "scripting"]
+# Storage/scroll/media writers run JS through eval.
+storage_media = ["window", "scripting"]
+# Queue, pump and drain primitives are null-safe without a window, but the
+# slice implies window so live tests and demos can open event sources.
+events = ["window"]
+
 # [lint]
 # disabled_rules = []
 # exclude = []

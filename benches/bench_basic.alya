@@ -6,9 +6,8 @@
 import "std/test"
 import "../src/lib.alya" as pkg
 
-function main()
-    let runner = bench_runner("webview Micro-Benchmarks")
-
+@cfg(feature = "settings")
+function bench_settings(runner)
     # Bench 1: settings factory — 100k iterations
     bench_start(runner, 100000)
     let i = 0
@@ -17,7 +16,14 @@ function main()
         i += 1
     end
     bench_stop(runner, "settings() 100k calls")
+end
 
+@cfg(not(feature = "settings"))
+function bench_settings(runner)
+end
+
+@cfg(feature = "events")
+function bench_events_summary(runner)
     # Bench 2: event record + summary — 100k iterations
     bench_start(runner, 100000)
     let j = 0
@@ -27,7 +33,14 @@ function main()
         j += 1
     end
     bench_stop(runner, "event summary 100k calls")
+end
 
+@cfg(not(feature = "events"))
+function bench_events_summary(runner)
+end
+
+@cfg(feature = "events")
+function bench_events_queue(runner)
     # Bench 3: queue push/poll round-trip — 50k iterations
     let q = pkg::event_queue()
     bench_start(runner, 50000)
@@ -39,26 +52,46 @@ function main()
         k += 1
     end
     bench_stop(runner, "queue round-trip 50k calls")
+end
 
-    # Bench 4: null-safe facade calls — 100k iterations
+@cfg(not(feature = "events"))
+function bench_events_queue(runner)
+end
+
+@cfg(feature = "events")
+function bench_events_poll(runner)
+    # Bench 4a: null-safe event pump — 100k iterations
     bench_start(runner, 100000)
     let m = 0
     while m < 100000
         pkg::poll(null)
-        pkg::is_open(null)
         m += 1
     end
-    bench_stop(runner, "null facade 100k calls")
+    bench_stop(runner, "poll null 100k calls")
+end
 
-    # Bench 5: backend probes — 200k iterations
-    bench_start(runner, 200000)
-    let s = 0
-    while s < 200000
-        pkg::backend_id()
-        s += 1
+@cfg(not(feature = "events"))
+function bench_events_poll(runner)
+end
+
+@cfg(feature = "window")
+function bench_window_null(runner)
+    # Bench 4b: null-safe window probe — 100k iterations
+    bench_start(runner, 100000)
+    let n = 0
+    while n < 100000
+        pkg::is_open(null)
+        n += 1
     end
-    bench_stop(runner, "backend_id() 200k calls")
+    bench_stop(runner, "is_open null 100k calls")
+end
 
+@cfg(not(feature = "window"))
+function bench_window_null(runner)
+end
+
+@cfg(feature = "input")
+function bench_input_keycode(runner)
     # Bench 6: key code map — 100k iterations
     bench_start(runner, 100000)
     let t = 0
@@ -67,6 +100,30 @@ function main()
         t += 1
     end
     bench_stop(runner, "key_code() 100k calls")
+end
+
+@cfg(not(feature = "input"))
+function bench_input_keycode(runner)
+end
+
+function main()
+    let runner = bench_runner("webview Micro-Benchmarks")
+
+    bench_settings(runner)
+    bench_events_summary(runner)
+    bench_events_queue(runner)
+    bench_events_poll(runner)
+    bench_window_null(runner)
+    bench_input_keycode(runner)
+
+    # Bench 5: backend probes — 200k iterations (always available)
+    bench_start(runner, 200000)
+    let s = 0
+    while s < 200000
+        pkg::backend_id()
+        s += 1
+    end
+    bench_stop(runner, "backend_id() 200k calls")
 
     bench_summary(runner)
 end

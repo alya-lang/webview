@@ -28,529 +28,739 @@ pub function engine_version() -> string
 end
 
 ## Creates an empty browser event queue.
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub function event_queue() -> WebviewEventQueue
     return event_queue_new()
 end
 
 ## Builds default engine settings (devtools off, JS on, default UA).
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function settings() -> WebviewSettings
     return default_settings()
 end
 
 ## Builds engine settings with explicit values.
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function settings_with(devtools: int = 0, js: int = 1, user_agent: string = "") -> WebviewSettings
     return make_settings(devtools, js, user_agent)
 end
 
 ## Opens a URL in the user's default browser (opt-in fallback).
 ## Returns `1` when the launch was attempted.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function open_external(url: string) -> int
     return native_browser_open_external(url)
 end
 
 ## Opens a browser window; null when no display or engine is available.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function open(title: string = "Alya", width: int = 800, height: int = 600)
     return native_browser_open(title, width, height)
 end
 
 ## Returns the configured profile folder (`""` when default).
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function data_dir() -> string
     return native_browser_data_dir()
 end
 
 ## Returns the configured extra switches (`""` when none).
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function extra_args() -> string
     return native_browser_extra_args()
 end
 
 ## Returns the actual folder backing an open window (`""` when none).
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function profile_path(win) -> string
     return native_browser_profile_path(win)
 end
 
 ## Opens a private (incognito) window; no persistent profile is kept.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function open_private(title: string = "Alya", width: int = 800, height: int = 600)
     return native_browser_open_private(title, width, height)
 end
 
 ## Sets the profile data folder for subsequently opened windows.
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function set_data_dir(path: string) -> int
     return native_browser_set_data_dir(path)
 end
 
 ## Sets extra Chromium switches for subsequently opened windows.
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function set_extra_args(args: string) -> int
     return native_browser_set_extra_args(args)
 end
 
 ## Sets the page zoom factor (`1.0` = 100%).
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function set_zoom(win, factor: float) -> int
     return native_browser_set_zoom(win, factor)
 end
 
 ## Returns the current zoom factor (`0.0` when unknown).
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function get_zoom(win) -> float
     return native_browser_get_zoom(win)
 end
 
 ## Moves the synthetic cursor over client pixel (`x`, `y`).
+## Requires the `input` feature (default-on).
+@cfg(feature = "input")
 pub function mouse_move(win, x: int, y: int) -> int
     return native_browser_mouse_move(win, x, y)
 end
 
 ## Presses a mouse button (`0` left, `1` right, `2` middle).
+## Requires the `input` feature (default-on).
+@cfg(feature = "input")
 pub function mouse_down(win, button: int) -> int
     return native_browser_mouse_down(win, button)
 end
 
 ## Releases a mouse button (`0` left, `1` right, `2` middle).
+## Requires the `input` feature (default-on).
+@cfg(feature = "input")
 pub function mouse_up(win, button: int) -> int
     return native_browser_mouse_up(win, button)
 end
 
 ## Clicks a mouse button (press + release at the cursor position).
+## Requires the `input` feature (default-on).
+@cfg(feature = "input")
 pub function mouse_click(win, button: int = 0) -> int
     return native_browser_mouse_click(win, button)
 end
 
 ## Scrolls by (`dx`, `dy`) detents at the cursor position.
+## Requires the `input` feature (default-on).
+@cfg(feature = "input")
 pub function mouse_wheel(win, dx: int, dy: int) -> int
     return native_browser_mouse_wheel(win, dx, dy)
 end
 
 ## Presses a key (platform code, see `key_code`).
+## Requires the `input` feature (default-on).
+@cfg(feature = "input")
 pub function key_down(win, code: int) -> int
     return native_browser_key_down(win, code)
 end
 
 ## Releases a key.
+## Requires the `input` feature (default-on).
+@cfg(feature = "input")
 pub function key_up(win, code: int) -> int
     return native_browser_key_up(win, code)
 end
 
 ## Taps a key (press + release).
+## Requires the `input` feature (default-on).
+@cfg(feature = "input")
 pub function key_tap(win, code: int) -> int
     return native_browser_key_tap(win, code)
 end
 
 ## Commits printable text to the page.
+## Requires the `input` feature (default-on).
+@cfg(feature = "input")
 pub function key_text(win, text: string) -> int
     return native_browser_key_text(win, text)
 end
 
 ## Maps a key name to the platform code (`-1` when unknown).
+## Requires the `input` feature (default-on).
+@cfg(feature = "input")
 pub function key_code(name: string) -> int
     return native_browser_key_code(name)
 end
 
 ## Sets the page base color (`0..255` per channel).
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function set_background(win, r: int, g: int, b: int, a: int = 255) -> int
     return native_browser_set_background(win, r, g, b, a)
 end
 
 ## Toggles the native context menu (`1` shows, `0` suppresses).
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function set_context_menu(win, enabled: int) -> int
     return native_browser_set_context_menu(win, enabled)
 end
 
 ## Toggles in-page shortcut blocking (Ctrl+P, PrintScreen, F12, ...).
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function set_shortcut_block(win, enabled: int) -> int
     return native_browser_set_shortcut_block(win, enabled)
 end
 
 ## Toggles image loading.
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function set_images(win, enabled: int) -> int
     return native_browser_set_images(win, enabled)
 end
 
 ## Toggles WebGL.
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function set_webgl(win, enabled: int) -> int
     return native_browser_set_webgl(win, enabled)
 end
 
 ## Sets the default text encoding (`"UTF-8"`).
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function set_charset(win, cs: string) -> int
     return native_browser_set_charset(win, cs)
 end
 
 ## Drops title bar and borders (reversible).
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function set_borderless(win, enabled: int) -> int
     return native_browser_set_borderless(win, enabled)
 end
 
 ## Keeps the window above all others.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function set_topmost(win, enabled: int) -> int
     return native_browser_set_topmost(win, enabled)
 end
 
 ## Sets window opacity (`0.0` invisible .. `1.0` opaque).
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function set_opacity(win, alpha: float) -> int
     return native_browser_set_opacity(win, alpha)
 end
 
 ## Lets input pass to windows below.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function set_click_through(win, enabled: int) -> int
     return native_browser_set_click_through(win, enabled)
 end
 
 ## Toggles exclusive fullscreen.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function set_fullscreen(win, enabled: int) -> int
     return native_browser_set_fullscreen(win, enabled)
 end
 
 ## Focuses the window and its page.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function focus(win) -> int
     return native_browser_focus(win)
 end
 
 ## Minimizes the window.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function minimize(win) -> int
     return native_browser_minimize(win)
 end
 
 ## Maximizes the window (work-area fill; taskbar stays visible).
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function maximize(win) -> int
     return native_browser_maximize(win)
 end
 
 ## Restores a minimized window.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function restore(win) -> int
     return native_browser_restore(win)
 end
 
 ## Moves the window to screen pixel (`x`, `y`).
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function set_position(win, x: int, y: int) -> int
     return native_browser_set_position(win, x, y)
 end
 
 ## Stops the current load.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function stop(win) -> int
     return native_browser_stop(win)
 end
 
 ## Reloads bypassing the cache.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function reload_bypass(win) -> int
     return native_browser_reload_bypass(win)
 end
 
 ## Serves a local folder under `alya://host/path`.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function serve_folder(host: string, folder: string) -> int
     return native_browser_serve_folder(host, folder)
 end
 
 ## Removes a folder mapping (`""` clears all).
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function clear_mapping(host: string) -> int
     return native_browser_clear_mapping(host)
 end
 
 ## Enables/disables the minimize title-bar button.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function set_minimize_button(win, enabled: int) -> int
     return native_browser_set_minimize_button(win, enabled)
 end
 
 ## Enables/disables the maximize/zoom title-bar button.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function set_maximize_button(win, enabled: int) -> int
     return native_browser_set_maximize_button(win, enabled)
 end
 
 ## Enables/disables the close title-bar button.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function set_close_button(win, enabled: int) -> int
     return native_browser_set_close_button(win, enabled)
 end
 
 ## Enables/disables interactive resizing.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function set_resizable(win, enabled: int) -> int
     return native_browser_set_resizable(win, enabled)
 end
 
 ## Finds text in the page; returns `1` when found.
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function find_text(win, query: string) -> int
     return native_browser_find_text(win, query)
 end
 
 ## Returns the page HTML source.
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function get_source(win) -> string
     return native_browser_get_source(win)
 end
 
 ## Returns the rendered page text.
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function get_text(win) -> string
     return native_browser_get_text(win)
 end
 
 ## Returns the document title.
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function document_title(win) -> string
     return native_browser_document_title(win)
 end
 
 ## Returns the current URL.
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function current_url(win) -> string
     return native_browser_current_url(win)
 end
 
 ## Returns the history length.
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function history_length(win) -> string
     return native_browser_history_length(win)
 end
 
 ## Returns the navigator user-agent.
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function user_agent(win) -> string
     return native_browser_user_agent(win)
 end
 
 ## Returns the viewport width in CSS pixels.
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function viewport_width(win) -> string
     return native_browser_viewport_width(win)
 end
 
 ## Returns the viewport height in CSS pixels.
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function viewport_height(win) -> string
     return native_browser_viewport_height(win)
 end
 
 ## Returns the document character set.
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function doc_charset(win) -> string
     return native_browser_doc_charset(win)
 end
 
 ## Returns the page language.
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function page_language(win) -> string
     return native_browser_page_language(win)
 end
 
 ## Returns `1` when the page reports itself online.
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function is_online(win) -> int
     return native_browser_is_online(win)
 end
 
 ## Returns the referrer (`""` when none).
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function referrer(win) -> string
     return native_browser_referrer(win)
 end
 
 ## Reads a localStorage value (JSON-encoded).
+## Requires the `storage_media` feature (default-on).
+@cfg(feature = "storage_media")
 pub function storage_get(win, key: string) -> string
     return native_browser_storage_get(win, key)
 end
 
 ## Writes a localStorage value.
+## Requires the `storage_media` feature (default-on).
+@cfg(feature = "storage_media")
 pub function storage_set(win, key: string, value: string) -> int
     return native_browser_storage_set(win, key, value)
 end
 
 ## Removes a localStorage value.
+## Requires the `storage_media` feature (default-on).
+@cfg(feature = "storage_media")
 pub function storage_remove(win, key: string) -> int
     return native_browser_storage_remove(win, key)
 end
 
 ## Scrolls to document pixel (`x`, `y`).
+## Requires the `storage_media` feature (default-on).
+@cfg(feature = "storage_media")
 pub function scroll_to(win, x: int, y: int) -> int
     return native_browser_scroll_to(win, x, y)
 end
 
 ## Scrolls by (`dx`, `dy`) pixels.
+## Requires the `storage_media` feature (default-on).
+@cfg(feature = "storage_media")
 pub function scroll_by(win, dx: int, dy: int) -> int
     return native_browser_scroll_by(win, dx, dy)
 end
 
 ## Scrolls to the top.
+## Requires the `storage_media` feature (default-on).
+@cfg(feature = "storage_media")
 pub function scroll_top(win) -> int
     return native_browser_scroll_top(win)
 end
 
 ## Scrolls to the bottom.
+## Requires the `storage_media` feature (default-on).
+@cfg(feature = "storage_media")
 pub function scroll_bottom(win) -> int
     return native_browser_scroll_bottom(win)
 end
 
 ## Opens the print dialog.
+## Requires the `inspection` feature (default-on).
+@cfg(feature = "inspection")
 pub function print_page(win) -> int
     return native_browser_print_page(win)
 end
 
 ## Mutes (`1`) or unmutes (`0`) all page media elements.
+## Requires the `storage_media` feature (default-on).
+@cfg(feature = "storage_media")
 pub function set_muted(win, muted: int) -> int
     return native_browser_set_muted(win, muted)
 end
 
 ## Returns `1` when no audible media is playing.
+## Requires the `storage_media` feature (default-on).
+@cfg(feature = "storage_media")
 pub function is_muted(win) -> int
     return native_browser_is_muted(win)
 end
 
 ## Sets all page media volumes (`0..100`).
+## Requires the `storage_media` feature (default-on).
+@cfg(feature = "storage_media")
 pub function set_volume(win, level: int) -> int
     return native_browser_set_volume(win, level)
 end
 
 ## Installs page error forwarding (see `fetch_message` + `is_js_error`).
+## Requires the `scripting` feature (default-on).
+@cfg(feature = "scripting")
 pub function on_error(win) -> int
     return native_browser_on_error(win)
 end
 
 ## Captures page console output (`1`) or restores it (`0`).
+## Requires the `scripting` feature (default-on).
+@cfg(feature = "scripting")
 pub function capture_console(win, enabled: int) -> int
     return native_browser_capture_console(win, enabled)
 end
 
 ## Pops the oldest inbox message (`""` when empty).
+## Requires the `scripting` feature (default-on).
+@cfg(feature = "scripting")
 pub function fetch_message(win) -> string
     return native_browser_fetch_message(win)
 end
 
 ## Returns `1` when a message payload is a forwarded JS error.
+## Requires the `scripting` feature (default-on).
+@cfg(feature = "scripting")
 pub function is_js_error(text: string) -> int
     return native_browser_is_js_error(text)
 end
 
 ## Returns `1` when a message payload is a captured console entry.
+## Requires the `scripting` feature (default-on).
+@cfg(feature = "scripting")
 pub function is_console(text: string) -> int
     return native_browser_is_console(text)
 end
 
 ## Destroys a browser window handle (null-safe).
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function destroy(win) -> int
     return native_browser_close_handle(win)
 end
 
 ## Shows a browser window (null-safe).
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function show(win) -> int
     return native_browser_show(win)
 end
 
 ## Hides a browser window (null-safe).
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function hide(win) -> int
     return native_browser_hide(win)
 end
 
 ## Returns 1 while the window handle is open.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function is_open(win) -> int
     return native_browser_is_open(win)
 end
 
 ## Returns 1 when the rendering engine is attached.
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function is_ready(win) -> int
     return native_browser_is_ready(win)
 end
 
 ## Requests a graceful close (null-safe).
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function request_close(win) -> int
     return native_browser_request_close(win)
 end
 
 ## Sets the window title (null-safe).
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function set_title(win, title: string) -> int
     return native_browser_set_title(win, title)
 end
 
 ## Resizes the window client area (null-safe).
+## Requires the `window` feature (default-on).
+@cfg(feature = "window")
 pub function resize(win, width: int, height: int) -> int
     return native_browser_resize(win, width, height)
 end
 
 ## Navigates to a URL; returns `1` when accepted.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function navigate(win, url: string) -> int
     return native_browser_navigate(win, url)
 end
 
 ## Loads an HTML document string; returns `1` when accepted.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function load_html(win, html: string) -> int
     return native_browser_load_html(win, html)
 end
 
 ## Reloads the current page; returns `1` when accepted.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function reload(win) -> int
     return native_browser_reload(win)
 end
 
 ## Goes back in history; returns `1` when accepted.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function back(win) -> int
     return native_browser_back(win)
 end
 
 ## Goes forward in history; returns `1` when accepted.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function forward(win) -> int
     return native_browser_forward(win)
 end
 
 ## Returns 1 when back navigation is possible.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function can_back(win) -> int
     return native_browser_can_back(win)
 end
 
 ## Returns 1 when forward navigation is possible.
+## Requires the `navigation` feature (default-on).
+@cfg(feature = "navigation")
 pub function can_forward(win) -> int
     return native_browser_can_forward(win)
 end
 
 ## Runs JS asynchronously; poll the result with `eval_state`/`eval_result`.
 ## Returns `1` when the script was submitted.
+## Requires the `scripting` feature (default-on).
+@cfg(feature = "scripting")
 pub function eval(win, js: string) -> int
     return native_browser_eval(win, js)
 end
 
 ## Returns the pending eval state (`0` pending, `1` ready, `2` error).
+## Requires the `scripting` feature (default-on).
+@cfg(feature = "scripting")
 pub function eval_state(win) -> int
     return native_browser_eval_state(win)
 end
 
 ## Returns the last JS eval result (`""` when none).
+## Requires the `scripting` feature (default-on).
+@cfg(feature = "scripting")
 pub function eval_result(win) -> string
     return native_browser_eval_result(win)
 end
 
 ## Submits JS and waits up to `budget` pumps; `""` on error/timeout.
+## Requires the `scripting` feature (default-on).
+@cfg(feature = "scripting")
 pub function eval_wait(win, js: string, budget: int = 200) -> string
     return native_browser_eval_wait(win, js, budget)
 end
 
 ## Delivers a string to the page through `window.postMessage`.
 ## Returns `1` when delivered.
+## Requires the `scripting` feature (default-on).
+@cfg(feature = "scripting")
 pub function post_message(win, json: string) -> int
     return native_browser_post_message(win, json)
 end
 
 ## Toggles developer tools; returns `1` when applied.
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function set_devtools(win, enabled: int) -> int
     return native_browser_set_devtools(win, enabled)
 end
 
 ## Toggles JavaScript; returns `1` when applied.
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function set_js(win, enabled: int) -> int
     return native_browser_set_js(win, enabled)
 end
 
 ## Overrides the user-agent string; returns `1` when applied.
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function set_user_agent(win, ua: string) -> int
     return native_browser_set_user_agent(win, ua)
 end
 
 ## Applies a `WebviewSettings` record; returns applied count.
+## Requires the `settings` feature (default-on).
+@cfg(feature = "settings")
 pub function apply_settings(win, s: WebviewSettings) -> int
     return native_browser_apply_settings(win, s)
 end
 
 ## Pumps once; returns the event kind (`0` = none).
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub function poll(win) -> int
     return native_browser_poll(win)
 end
 
 ## Drains pending events into `q` as `WebviewEvent` records.
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub function drain(win, q: WebviewEventQueue) -> int
     return native_browser_drain(win, q)
 end
 
 ## Last event: current URL (`""` when unknown).
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub function last_url(win) -> string
     return native_browser_last_url(win)
 end
 
 ## Last event: document title (`""` when unknown).
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub function last_title(win) -> string
     return native_browser_last_title(win)
 end
 
 ## Last `Message` event: payload text (`""` when none).
+## Requires the `events` feature (default-on).
+@cfg(feature = "events")
 pub function last_text(win) -> string
     return native_browser_last_text(win)
 end
