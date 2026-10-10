@@ -83,9 +83,9 @@ function test_scripting(r)
     runner_assert_str_eq(r, pkg::fetch_message(null), "", "fetch_message null empty")
     runner_assert_eq(r, pkg::is_js_error(null), false, "is_js_error null is 0")
     runner_assert_eq(r, pkg::is_console(null), false, "is_console null is 0")
-    runner_assert_eq(r, pkg::is_js_error("alya-js-error:{x:1}"), true, "js-error prefix detected")
+    runner_assert_eq(r, pkg::is_js_error(f"alya-js-error:{x:1}"), true, "js-error prefix detected")
     runner_assert_eq(r, pkg::is_js_error("hello"), false, "plain text is not js-error")
-    runner_assert_eq(r, pkg::is_console("alya-console:{x:1}"), true, "console prefix detected")
+    runner_assert_eq(r, pkg::is_console(f"alya-console:{x:1}"), true, "console prefix detected")
     runner_assert_eq(r, pkg::is_console("hello"), false, "plain text is not console")
 end
 

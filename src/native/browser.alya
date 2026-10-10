@@ -815,7 +815,7 @@ pub function native_browser_set_muted(win, muted: int) -> int
     if muted != 0
         flag = "true"
     end
-    return native_browser_eval(win, "document.querySelectorAll('audio,video').forEach(function(m){m.muted=" + flag + "})")
+    return native_browser_eval(win, f"document.querySelectorAll('audio,video').forEach(function(m){m.muted=" + flag + "})")
 end
 
 ## Returns `1` when no audible media is playing (all elements muted
@@ -826,7 +826,7 @@ pub function native_browser_is_muted(win) -> int
     if win is null
         return false
     end
-    if native_browser_eval_wait(win, "Array.prototype.every.call(document.querySelectorAll('audio,video'),function(m){return m.muted})", 200) == "true"
+    if native_browser_eval_wait(win, f"Array.prototype.every.call(document.querySelectorAll('audio,video'),function(m){return m.muted})", 200) == "true"
         return true
     end
     return false
@@ -845,7 +845,7 @@ pub function native_browser_set_volume(win, level: int) -> int
     if level > 100
         level = 100
     end
-    return native_browser_eval(win, "document.querySelectorAll('audio,video').forEach(function(m){m.volume=(" + str(level) + "/100)})")
+    return native_browser_eval(win, f"document.querySelectorAll('audio,video').forEach(function(m){m.volume=(" + str(level) + "/100)})")
 end
 
 # ───────────────────────────────────────────────────────────────
@@ -866,11 +866,11 @@ pub function native_browser_on_error(win) -> int
     if win is null
         return false
     end
-    let js = "if(!window.__alyaErrHook){window.__alyaErrHook=1;window.__alyaInbox=[];"
-    js += "window.addEventListener('error',function(e){var m=e.message||((e.error&&e.error.stack)||'unknown');"
-    js += "window.__alyaInbox.push('alya-js-error:'+JSON.stringify({message:String(m),source:String(e.filename||''),line:(e.lineno||0)}));},true);"
+    let js = f"if(!window.__alyaErrHook){window.__alyaErrHook=1;window.__alyaInbox=[];"
+    js += f"window.addEventListener('error',function(e){var m=e.message||((e.error&&e.error.stack)||'unknown');"
+    js += f"window.__alyaInbox.push('alya-js-error:'+JSON.stringify({message:String(m),source:String(e.filename||''),line:(e.lineno||0)}));},true);"
     js += "window.addEventListener('unhandledrejection',function(e){"
-    js += "window.__alyaInbox.push('alya-js-error:'+JSON.stringify({message:String(((e.reason&&e.reason.stack)||e.reason||'rejection')),source:'promise',line:0}));});}"
+    js += f"window.__alyaInbox.push('alya-js-error:'+JSON.stringify({message:String(((e.reason&&e.reason.stack)||e.reason||'rejection')),source:'promise',line:0}));});}"
     return native_browser_eval(win, js)
 end
 
@@ -883,12 +883,12 @@ pub function native_browser_capture_console(win, enabled: int) -> int
         return false
     end
     if enabled == 0
-        return native_browser_eval(win, "if(window.__alyaConsoleHook){['log','info','warn','error','debug'].forEach(function(lv){console[lv]=window.__alyaConsoleOrig[lv]});window.__alyaConsoleHook=0;}")
+        return native_browser_eval(win, f"if(window.__alyaConsoleHook){['log','info','warn','error','debug'].forEach(function(lv){console[lv]=window.__alyaConsoleOrig[lv]});window.__alyaConsoleHook=0;}")
     end
-    let js = "if(!window.__alyaConsoleHook){window.__alyaConsoleHook=1;window.__alyaConsoleOrig={};window.__alyaInbox=window.__alyaInbox||[];"
-    js += "['log','info','warn','error','debug'].forEach(function(lv){window.__alyaConsoleOrig[lv]=console[lv];"
-    js += "console[lv]=function(){var a=Array.prototype.slice.call(arguments).map(function(x){try{return typeof x==='string'?x:JSON.stringify(x)}catch(e){return String(x)}});"
-    js += "try{window.__alyaInbox.push('alya-console:'+JSON.stringify({level:lv,text:a.join(' ')}))}catch(e){};"
+    let js = f"if(!window.__alyaConsoleHook){window.__alyaConsoleHook=1;window.__alyaConsoleOrig={};window.__alyaInbox=window.__alyaInbox||[];"
+    js += f"['log','info','warn','error','debug'].forEach(function(lv){window.__alyaConsoleOrig[lv]=console[lv];"
+    js += f"console[lv]=function(){var a=Array.prototype.slice.call(arguments).map(function(x){try{return typeof x==='string'?x:JSON.stringify(x)}catch(e){return String(x)}});"
+    js += f"try{window.__alyaInbox.push('alya-console:'+JSON.stringify({level:lv,text:a.join(' ')}))}catch(e){};"
     js += "return window.__alyaConsoleOrig[lv].apply(console,arguments)};});}"
     return native_browser_eval(win, js)
 end
@@ -901,7 +901,7 @@ pub function native_browser_fetch_message(win) -> string
     if win is null
         return ""
     end
-    return json_unquote(native_browser_eval_wait(win, "(function(){var q=window.__alyaInbox||[];var m=q.shift();return (m===undefined?'':m)})()", 200))
+    return json_unquote(native_browser_eval_wait(win, f"(function(){var q=window.__alyaInbox||[];var m=q.shift();return (m===undefined?'':m)})()", 200))
 end
 
 ## Returns `1` when a message payload is a forwarded JS error.

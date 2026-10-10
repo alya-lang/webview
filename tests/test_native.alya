@@ -259,7 +259,7 @@ function test_live_scripting(r)
         end
         runner_assert_eq(r, gotc, true, "console entry forwarded")
         pkg::eval_wait(w, "1", 50)
-        pkg::eval(w, "setTimeout(function(){throw new Error('probe-err-1')},0)")
+        pkg::eval(w, f"setTimeout(function(){throw new Error('probe-err-1')},0)")
         let gote = false
         let e0 = clock_ms()
         while clock_ms() - e0 < 20000

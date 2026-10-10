@@ -144,5 +144,5 @@ end
 ## Requires the `events` feature (default-on).
 @cfg(feature = "events")
 pub function WebviewEvent.summary(self: WebviewEvent) -> string
-    return "event(kind={self.kind}, url={self.url})"
+    return f"event(kind={self.kind}, url={self.url})"
 end
